@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared Roll — 一群人,共用一卷底片</title>
+<meta name="description" content="Shared Roll 是一台盲拍相機:一群人共用一卷底片,拍下的照片誰都看不到,隔天中午全員同時開箱。">
+<style>
+  :root {
+    --bg: #0E0C0A;
+    --panel: #1A1410;
+    --text: #EDE4D3;
+    --muted: #B5A88F;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans TC", -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    line-height: 1.75;
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+  }
+  main {
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: 4.5rem 1.5rem 3rem;
+    flex: 1;
+  }
+  .wordmark {
+    font-family: "Savoye LET", "Snell Roundhand", "Brush Script MT", cursive;
+    font-size: 3.2rem;
+    color: var(--text);
+  }
+  .tagline {
+    margin-top: .75rem;
+    font-size: 1.35rem;
+    font-weight: 700;
+  }
+  .lede { margin-top: 1rem; color: var(--muted); }
+  section { margin-top: 3rem; }
+  h2 { font-size: 1rem; letter-spacing: .15em; color: var(--muted); font-weight: 400; }
+  ol {
+    margin-top: 1rem;
+    list-style: none;
+    counter-reset: step;
+    display: grid;
+    gap: .8rem;
+  }
+  ol li {
+    counter-increment: step;
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+  }
+  ol li::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    color: var(--muted);
+    margin-right: .9rem;
+  }
+  .status { margin-top: 3rem; color: var(--muted); font-size: .95rem; }
+  footer {
+    border-top: 1px solid #2A2622;
+    color: var(--muted);
+    font-size: .85rem;
+    padding: 1.5rem;
+    text-align: center;
+  }
+  a { color: var(--text); }
+</style>
+</head>
+<body>
+<main>
+  <div class="wordmark">Shared Roll</div>
+  <p class="tagline">一群人,共用一卷底片。</p>
+  <p class="lede">Shared Roll 是一台盲拍相機:拍下的每一張照片,在開箱之前誰都看不到——包括拍的人自己。底片卷在隔天中午自動沖洗,全員同一秒開箱。</p>
+
+  <section>
+    <h2>怎麼玩</h2>
+    <ol>
+      <li>建一卷底片,選一款濾鏡,朋友掃碼加入。</li>
+      <li>活動裡輪流盲拍。快門按下去,照片就封進卷裡,反悔不了。</li>
+      <li>隔天中午十二點,整卷同時開箱——一起看昨天拍到了什麼。</li>
+    </ol>
+  </section>
+
+  <p class="status">iOS 版封測中,Android 版開發中。想加入封測或洽談合作,來信聊聊。</p>
+</main>
+<footer>
+  <a href="mailto:sharedroll.support@gmail.com">sharedroll.support@gmail.com</a> · © 2026 Shared Roll
+</footer>
+</body>
+</html>
