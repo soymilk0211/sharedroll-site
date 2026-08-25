@@ -60,6 +60,17 @@
     color: var(--muted);
     margin-right: .9rem;
   }
+  .products { margin-top: 1.25rem; display: grid; gap: .8rem; }
+  .product { background: var(--panel); border-radius: 12px; padding: 1.1rem 1.25rem; }
+  .product-head { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; }
+  .product-name { font-weight: 700; font-size: 1.1rem; }
+  .product-price {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 1.35rem; color: var(--text); white-space: nowrap;
+  }
+  .product-price small { color: var(--muted); font-size: .9rem; }
+  .product-desc { margin-top: .5rem; color: var(--muted); font-size: .95rem; }
+  .ship-note { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
   .status { margin-top: 3rem; color: var(--muted); font-size: .95rem; }
   footer {
     border-top: 1px solid #2A2622;
@@ -84,6 +95,28 @@
       <li>活動裡輪流盲拍。快門按下去,照片就封進卷裡,反悔不了。</li>
       <li>隔天中午十二點,整卷同時開箱——一起看昨天拍到了什麼。</li>
     </ol>
+  </section>
+
+  <section>
+    <h2>沖印服務・價目表</h2>
+    <p class="lede">開箱之後,把回憶洗成實體相片,寄到家。以下為單張沖印服務的商品與售價。</p>
+    <div class="products">
+      <div class="product">
+        <div class="product-head">
+          <span class="product-name">單張沖印(4×6 相紙)</span>
+          <span class="product-price">NT$49 <small>／張</small></span>
+        </div>
+        <p class="product-desc">從你的底片卷挑選任意張數,一張一張洗成 4×6 實體相片,含 Shared Roll 專屬邊框與落款。</p>
+      </div>
+      <div class="product">
+        <div class="product-head">
+          <span class="product-name">整卷打包(最多 36 張)</span>
+          <span class="product-price">NT$699 <small>／卷</small></span>
+        </div>
+        <p class="product-desc">一次把整卷洗出來的優惠價,最多 36 張。適合想完整保存一場活動的人。</p>
+      </div>
+    </div>
+    <p class="ship-note">全台配送,運費每筆訂單 NT$60。實際製作與寄送於訂單成立後 5–7 個工作天。</p>
   </section>
 
   <p class="status">iOS 版封測中,Android 版開發中。想加入封測或洽談合作,來信聊聊。</p>
