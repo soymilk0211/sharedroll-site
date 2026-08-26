@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>前往付款 — Shared Roll</title>
+<!--
+  綠界付款的中繼頁(#78、#88)。
+
+  App 帶著單號與一次性通行證把系統瀏覽器開到這裡;這一頁向 Edge Function(ecpay-checkout)
+  要付款欄位(JSON),在瀏覽器裡組一個 form,自動 POST 進綠界的 AioCheckOut。使用者正常情況
+  只會看到「正在前往綠界付款…」一閃而過。
+
+  ## 為什麼有這一頁(#88)
+
+  原本由 Edge Function 直接回自動送出的表單頁。**沒有自訂網域的專案,GET 回 text/html 會被
+  Supabase 改寫成 text/plain**(supabase.com/docs/guides/functions/limits),使用者看到的是
+  一頁原始碼。JSON 不在改寫範圍內,所以欄位照樣由伺服器簽(HashKey 永遠不離開伺服器),
+  只有「把表單送出去」這一小步搬到這裡。
+
+  ## 這一份是原始碼,線上那一份是它的複本
+
+  **主 repo(soymilk0211/SharedRoll,私有)的 pay/index.html 是真正的那一份。** 線上跑的是
+  soymilk0211/sharedroll-site 的 /pay/(GitHub Pages)。改請改主 repo,再複製過去——與
+  admin/index.html 同一條規則。
+
+  這一頁沒有任何祕密:單號與通行證在網址上(通行證單次有效,付款成功即換掉),欄位與檢查碼
+  是伺服器簽好交下來的,這裡只是轉手。
+-->
+<style>
+  :root {
+    --bg: #0E0C0A; --panel: #1A1410; --divider: #2A2622;
+    --text: #EDE4D3; --muted: #B5A88F; --accent: #C9C4BC; --bad: #D98A6A;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    padding: 24px 16px; background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+    font-size: 16px; line-height: 1.6;
+  }
+  main {
+    max-width: 420px; width: 100%; text-align: center;
+    background: var(--panel); border: 1px solid var(--divider);
+    border-radius: 14px; padding: 28px 20px;
+  }
+  h1 { font-size: 17px; font-weight: 600; margin: 0 0 8px; }
+  p { margin: 0; color: var(--muted); font-size: 15px; }
+  .bad { color: var(--bad); }
+  button {
+    margin-top: 16px; width: 100%; padding: 13px; border-radius: 10px;
+    border: 1px solid var(--accent); background: transparent; color: var(--text);
+    font-size: 16px; font-family: inherit; cursor: pointer; min-height: 48px;
+  }
+  button:active { opacity: 0.7; }
+  [hidden] { display: none !important; }
+  /* 轉圈:等伺服器簽欄位的那一秒。 */
+  .spin {
+    width: 28px; height: 28px; margin: 0 auto 14px; border-radius: 50%;
+    border: 3px solid var(--divider); border-top-color: var(--accent);
+    animation: turn 0.9s linear infinite;
+  }
+  @keyframes turn { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<main>
+  <div id="wait">
+    <div class="spin" aria-hidden="true"></div>
+    <h1>正在前往綠界付款…</h1>
+    <p>不用做任何事,馬上就好。</p>
+  </div>
+  <div id="fail" hidden>
+    <h1 id="failTitle" class="bad">現在過不去</h1>
+    <p id="failBody"></p>
+    <button id="retry" type="button" hidden>再試一次</button>
+  </div>
+</main>
+
+<script>
+(() => {
+  /** 欄位供應端。與 App 同一個 Supabase 專案。 */
+  const ENDPOINT = 'https://mkqdchybsjccxlnhkqsh.supabase.co/functions/v1/ecpay-checkout';
+
+  const $ = (id) => document.getElementById(id);
+
+  function showFailure(body, canRetry) {
+    $('wait').hidden = true;
+    $('fail').hidden = false;
+    $('failBody').textContent = body;
+    $('retry').hidden = !canRetry;
+  }
+
+  /**
+   * 把伺服器簽好的欄位組成表單,送進綠界。
+   *
+   * 走 DOM API 逐個建 input,不拼 HTML 字串——值裡有什麼字元都不必跳脫,也就沒有忘了跳脫
+   * 這種事。
+   */
+  function submitTo(checkoutUrl, fields) {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = checkoutUrl;
+    for (const [name, value] of Object.entries(fields)) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = value;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  }
+
+  async function go() {
+    $('wait').hidden = false;
+    $('fail').hidden = true;
+
+    const params = new URLSearchParams(location.search);
+    const order = params.get('order') ?? '';
+    const token = params.get('token') ?? '';
+    if (order === '' || token === '') {
+      // 沒帶參數就是直接打網址進來的。這一頁只有從 App 的付款按鈕過來才有意義。
+      showFailure('這一頁要從 App 裡的付款按鈕過來才會有東西。', false);
+      return;
+    }
+
+    let response;
+    try {
+      response = await fetch(ENDPOINT + '?order=' + encodeURIComponent(order) + '&token=' + encodeURIComponent(token));
+    } catch {
+      // fetch 自己丟例外 = 連不上(斷網、DNS)。這種可以重試——網路會好回來。
+      showFailure('連不上伺服器,檢查一下網路。', true);
+      return;
+    }
+
+    if (response.ok) {
+      const { checkoutUrl, fields } = await response.json();
+      submitTo(checkoutUrl, fields);
+      return;
+    }
+    // 404(查無/已付款)與 503(尚未開通)都不是重試救得回來的,所以不給按鈕——一顆按了
+    // 也不會變的「再試一次」比沒有更糟。句子由伺服器給,讀不出來才用後備的那一句。
+    const fallback = '查無這張訂單,或它已經付款了。回 App 再看一次訂單。';
+    let said = fallback;
+    try {
+      said = (await response.json()).error ?? fallback;
+    } catch {
+      /* 回應不是 JSON(例如中間被什麼攔了)就用後備句。 */
+    }
+    showFailure(said, false);
+  }
+
+  $('retry').addEventListener('click', () => void go());
+  void go();
+})();
+</script>
+</body>
+</html>
