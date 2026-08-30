@@ -71,6 +71,10 @@
   .product-price small { color: var(--muted); font-size: .9rem; }
   .product-desc { margin-top: .5rem; color: var(--muted); font-size: .95rem; }
   .ship-note { margin-top: 1rem; color: var(--muted); font-size: .9rem; }
+  /* 聯絡方式要看得見:綠界的收款審核會打開這一頁,找一個與註冊會員相同的 email 或電話,
+     找不到就退件(2026-08-30 信用卡與非信用卡兩項都因此被退)。所以它是正文的一段,
+     不是頁尾的小字。 */
+  .contact { margin-top: .6rem; color: var(--muted); font-size: .95rem; }
   .status { margin-top: 3rem; color: var(--muted); font-size: .95rem; }
   footer {
     border-top: 1px solid #2A2622;
@@ -104,19 +108,19 @@
       <div class="product">
         <div class="product-head">
           <span class="product-name">單張沖印(4×6 相紙)</span>
-          <span class="product-price">NT$49 <small>／張</small></span>
+          <span class="product-price">NT$20 <small>／張</small></span>
         </div>
-        <p class="product-desc">從你的底片卷挑選任意張數,一張一張洗成 4×6 實體相片,含 Shared Roll 專屬邊框與落款。</p>
-      </div>
-      <div class="product">
-        <div class="product-head">
-          <span class="product-name">整卷打包(最多 36 張)</span>
-          <span class="product-price">NT$699 <small>／卷</small></span>
-        </div>
-        <p class="product-desc">一次把整卷洗出來的優惠價,最多 36 張。適合想完整保存一場活動的人。</p>
+        <p class="product-desc">從你的底片卷挑選要洗的照片,一張一張洗成 4×6 實體相片,含 Shared Roll 專屬邊框與落款。同一張可以洗多份。</p>
       </div>
     </div>
-    <p class="ship-note">全台配送,運費每筆訂單 NT$60。實際製作與寄送於訂單成立後 5–7 個工作天。</p>
+    <p class="ship-note">沖印 10 張起。全台配送,運費每筆訂單 NT$60。實際製作與寄送於訂單成立後 5–7 個工作天。照片由台灣的沖印廠「點點印」印製寄出,包裹上會是他們的名字。</p>
+  </section>
+
+  <section>
+    <h2>聯絡我們</h2>
+    <p class="contact">商家名稱:Shared Roll</p>
+    <p class="contact">聯絡信箱:<a href="mailto:tim78937@gmail.com">tim78937@gmail.com</a></p>
+    <p class="contact">客服信箱:<a href="mailto:sharedroll.support@gmail.com">sharedroll.support@gmail.com</a></p>
   </section>
 
   <p class="status">iOS 版封測中,Android 版開發中。想加入封測或洽談合作,來信聊聊。</p>
