@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
+<!--
+  付款通行證在網址上(?order=…&token=…),所以它會進系統瀏覽器的網址列與歷史紀錄,而
+  Referer 標頭會把整條網址帶去下一站。傷害面只有「替這張單付錢」,不是攻擊面;現代瀏覽器
+  的預設策略也已經擋住跨站外洩。這一行只是把它釘死,不再依賴預設值(#116)。
+-->
+<meta name="referrer" content="no-referrer">
 <title>前往付款 — SharedRoll</title>
 <!--
   綠界付款的中繼頁(#78、#88)。
@@ -140,16 +146,25 @@
       submitTo(checkoutUrl, fields);
       return;
     }
-    // 404(查無/已付款)與 503(尚未開通)都不是重試救得回來的,所以不給按鈕——一顆按了
-    // 也不會變的「再試一次」比沒有更糟。句子由伺服器給,讀不出來才用後備的那一句。
-    const fallback = '查無這張訂單,或它已經付款了。回 App 再看一次訂單。';
+    // 404(查無/已付款)不是重試救得回來的,所以不給按鈕——一顆按了也不會變的「再試一次」
+    // 比沒有更糟。
+    //
+    // **503 與 500 反過來:那是暫時的**(#112)。伺服器連不上訂單資料、或它自己炸了,重試
+    // 就會好;以前這兩種跟「查無此單」歸在同一邊,使用者唯一會做的事是回頭重新選照片、
+    // 下第二張單。付款尚未開通那一種也回 503,重試同樣沒有壞處。
+    //
+    // 句子由伺服器給,讀不出來才用後備的那一句。
+    const retryable = response.status >= 500;
+    const fallback = retryable
+      ? '現在開不了付款頁,稍後再試一次。'
+      : '查無這張訂單,或它已經付款了。回 App 再看一次訂單。';
     let said = fallback;
     try {
       said = (await response.json()).error ?? fallback;
     } catch {
       /* 回應不是 JSON(例如中間被什麼攔了)就用後備句。 */
     }
-    showFailure(said, false);
+    showFailure(said, retryable);
   }
 
   $('retry').addEventListener('click', () => void go());
