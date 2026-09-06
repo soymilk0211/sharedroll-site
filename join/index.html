@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>加入房間 — SharedRoll</title>
+<!-- iMessage、LINE 的連結預覽讀的是這兩行。房名不在網址上(連結只帶房間碼),所以這裡不寫房名。 -->
+<meta property="og:title" content="一起拍這一卷 — SharedRoll">
+<meta property="og:description" content="有人邀你一起拍一卷底片。按進來就能加入房間。">
+<meta property="og:type" content="website">
+<!--
+  Smart App Banner:App 正式上架之後,iPhone 的 Safari 會在這一頁頂端多一條「SharedRoll — 打開」,
+  裝了的人按一下開 App、沒裝的人按一下到 App Store。上架之前 Safari 查不到這個編號,那一條就不會
+  出現,其他東西不受影響。編號是 App Store Connect 上這個 App 的 Apple ID(eas.json 的 ascAppId)。
+-->
+<meta name="apple-itunes-app" content="app-id=6807250154">
+<!--
+  分享連結的落地頁(#393)。
+
+  房主在 App 裡按「分享房間碼」,送出去的訊息裡有一條
+  https://soymilk0211.github.io/sharedroll-site/join/?code=ABC234 這樣的連結。它是 Universal Link:
+  **裝了 SharedRoll 的 iPhone 按下去直接開 App 進房,根本不會看到這一頁**;會落在這裡的是沒裝
+  App 的人、Android 的人、或在瀏覽器裡打開它的人。
+
+  所以這一頁只做三件事:把六碼房間碼寫得很大(裝完 App 回來要抄)、一顆「打開 SharedRoll」
+  (走 sharedroll:// 這個 App 自己的網址,已經裝了的人按了就進房)、一顆去 TestFlight 裝的按鈕。
+  裝完之後上下文一定是斷的(第一波不做 deferred deep link,需求規格書 10.5),沒有任何機制能替
+  他把房間碼帶過去,所以那六碼是這一頁最重要的東西。
+
+  ## 這一份是原始碼,線上那一份是它的複本
+
+  **主 repo(soymilk0211/SharedRoll,私有)的 join/index.html 是真正的那一份。** 線上跑的是
+  soymilk0211/sharedroll-site 的 /join/(GitHub Pages)。改請改主 repo,再複製過去——與
+  pay/index.html 同一條規則,mirrors.lock.json 盯著兩邊有沒有對上。
+
+  讓 iPhone 認得這條網址的那個檔案(apple-app-site-association)不在這個 repo:它必須放在
+  根網域 https://soymilk0211.github.io/.well-known/ 底下,所以住在 soymilk0211/soymilk0211.github.io。
+  房間碼的字元表要與 App 的 src/rooms/human-codes.ts 一致(沒有 0/O/1/I)。
+-->
+<style>
+  :root {
+    --bg: #0E0C0A; --panel: #1A1410; --divider: #2A2622;
+    --text: #EDE4D3; --muted: #B5A88F; --accent: #C9C4BC;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+    background: var(--bg); color: var(--text);
+    font-family: "Noto Sans TC", -apple-system, BlinkMacSystemFont, "PingFang TC", "Microsoft JhengHei", sans-serif;
+    font-size: 16px; line-height: 1.7;
+  }
+  main { flex: 1; width: 100%; max-width: 26rem; margin: 0 auto; padding: 3.5rem 1.25rem 2rem; }
+  .wordmark {
+    font-family: "Savoye LET", "Snell Roundhand", "Brush Script MT", cursive;
+    font-size: 2.6rem; line-height: 1.1;
+  }
+  h1 { font-size: 1.25rem; font-weight: 700; margin: 2rem 0 0; line-height: 1.5; }
+  .label { margin: 1.75rem 0 .5rem; color: var(--muted); font-size: .9rem; letter-spacing: .15em; }
+  /* 六個格子,長得像 App 裡輸入房間碼的那一排,人看到就知道這六碼要抄。 */
+  .code { display: flex; gap: .5rem; }
+  .cell {
+    flex: 1 1 0; max-width: 3.5rem; aspect-ratio: 4 / 5;
+    display: grid; place-items: center;
+    background: var(--panel); border: 1px solid var(--divider); border-radius: 10px;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 1.75rem; font-weight: 600;
+  }
+  .button {
+    display: block; width: 100%; margin-top: 1.25rem; padding: 14px 16px; min-height: 48px;
+    border-radius: 10px; border: 1px solid var(--accent); background: transparent;
+    color: var(--text); text-align: center; text-decoration: none; font-size: 16px; font-weight: 600;
+  }
+  .button.primary { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .button:active { opacity: .7; }
+  .hint { margin: .6rem 0 0; color: var(--muted); font-size: .95rem; }
+  .hint.dim { margin-top: 1.5rem; font-size: .85rem; }
+  footer {
+    border-top: 1px solid var(--divider); color: var(--muted); font-size: .85rem;
+    padding: 1.25rem; text-align: center;
+  }
+  footer a { color: var(--muted); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="wordmark">SharedRoll</div>
+
+  <section id="ok" hidden>
+    <h1>有人邀你一起拍一卷底片</h1>
+    <p class="label">房間碼</p>
+    <div class="code" id="code" aria-label="房間碼"></div>
+    <a class="button primary" id="open" href="#">打開 SharedRoll 進房</a>
+    <p class="hint">已經裝了 SharedRoll 的話,按上面那顆就直接進房。</p>
+    <a class="button" href="https://testflight.apple.com/join/hh9FeWUX">還沒裝?iPhone 從這裡裝</a>
+    <p class="hint">裝好之後打開 SharedRoll,按「加入房間」,把上面這六碼輸進去。</p>
+    <p class="hint dim">Android 版還在封閉測試中,還沒有公開的下載處。</p>
+  </section>
+
+  <section id="bad" hidden>
+    <h1>這條連結不完整</h1>
+    <p class="hint">裡面沒有房間碼。請對方再分享一次,或直接跟他要那六碼,在 SharedRoll 裡按「加入房間」輸進去。</p>
+    <a class="button" href="https://testflight.apple.com/join/hh9FeWUX">還沒裝?iPhone 從這裡裝</a>
+  </section>
+</main>
+<footer><a href="https://soymilk0211.github.io/sharedroll-site/">SharedRoll</a> · 一群人,共用一卷底片</footer>
+<script>
+(function () {
+  // 與 App 的 src/rooms/human-codes.ts 同一張字元表:沒有 0/O/1/I,六碼。
+  var ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  var LENGTH = 6;
+
+  var code = (new URLSearchParams(location.search).get('code') || '').trim().toUpperCase();
+  var valid = code.length === LENGTH;
+  for (var i = 0; valid && i < code.length; i += 1) {
+    if (ALPHABET.indexOf(code.charAt(i)) === -1) valid = false;
+  }
+
+  if (!valid) {
+    document.getElementById('bad').hidden = false;
+    return;
+  }
+
+  var cells = document.getElementById('code');
+  for (var j = 0; j < code.length; j += 1) {
+    var cell = document.createElement('span');
+    cell.className = 'cell';
+    cell.textContent = code.charAt(j);
+    cells.appendChild(cell);
+  }
+  // 只放驗過的那六碼,不把網址上的東西原樣轉進 App。
+  document.getElementById('open').setAttribute('href', 'sharedroll://join?code=' + code);
+  document.title = '房間碼 ' + code + ' — SharedRoll';
+  document.getElementById('ok').hidden = false;
+})();
+</script>
+</body>
+</html>
