@@ -24,7 +24,7 @@
   App 的人、Android 的人、或在瀏覽器裡打開它的人。
 
   所以這一頁只做三件事:把六碼房間碼寫得很大(裝完 App 回來要抄)、一顆「打開 SharedRoll」
-  (走 sharedroll:// 這個 App 自己的網址,已經裝了的人按了就進房)、一顆去 TestFlight 裝的按鈕。
+  (走 sharedroll:// 這個 App 自己的網址,已經裝了的人按了就進房)、一顆去 App Store 下載的按鈕。
   裝完之後上下文一定是斷的(第一波不做 deferred deep link,需求規格書 10.5),沒有任何機制能替
   他把房間碼帶過去,所以那六碼是這一頁最重要的東西。
 
@@ -93,15 +93,15 @@
     <div class="code" id="code" aria-label="房間碼"></div>
     <a class="button primary" id="open" href="#">打開 SharedRoll 進房</a>
     <p class="hint">已經裝了 SharedRoll 的話,按上面那顆就直接進房。</p>
-    <a class="button" href="https://testflight.apple.com/join/hh9FeWUX">還沒裝?iPhone 從這裡裝</a>
+    <a class="button" href="https://apps.apple.com/tw/app/sharedroll/id6807250154">還沒裝?到 App Store 免費下載</a>
     <p class="hint">裝好之後打開 SharedRoll,按「加入房間」,把上面這六碼輸進去。</p>
-    <p class="hint dim">Android 版還在封閉測試中,還沒有公開的下載處。</p>
+    <p class="hint dim">Android 版即將推出。</p>
   </section>
 
   <section id="bad" hidden>
     <h1>這條連結不完整</h1>
     <p class="hint">裡面沒有房間碼。請對方再分享一次,或直接跟他要那六碼,在 SharedRoll 裡按「加入房間」輸進去。</p>
-    <a class="button" href="https://testflight.apple.com/join/hh9FeWUX">還沒裝?iPhone 從這裡裝</a>
+    <a class="button" href="https://apps.apple.com/tw/app/sharedroll/id6807250154">還沒裝?到 App Store 免費下載</a>
   </section>
 </main>
 <footer><a href="https://soymilk0211.github.io/sharedroll-site/">SharedRoll</a> · 一群人,共用一卷底片</footer>
