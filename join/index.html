@@ -53,18 +53,19 @@
   main { flex: 1; width: 100%; max-width: 26rem; margin: 0 auto; padding: 3.5rem 1.25rem 2rem; }
   .wordmark {
     font-family: "Savoye LET", "Snell Roundhand", "Brush Script MT", cursive;
-    font-size: 2.6rem; line-height: 1.1;
+    font-size: 2.2rem; line-height: 1.1;
   }
   h1 { font-size: 1.25rem; font-weight: 700; margin: 2rem 0 0; line-height: 1.5; }
   .label { margin: 1.75rem 0 .5rem; color: var(--muted); font-size: .9rem; letter-spacing: .15em; }
   /* 六個格子,長得像 App 裡輸入房間碼的那一排,人看到就知道這六碼要抄。 */
-  .code { display: flex; gap: .5rem; }
+  /* 六碼是這一頁最大的字(要從海報掃進來的人照抄),390 寬也不換行:flex 不折行、字級跟著寬度縮。 */
+  .code { display: flex; flex-wrap: nowrap; gap: .375rem; }
   .cell {
-    flex: 1 1 0; max-width: 3.5rem; aspect-ratio: 4 / 5;
+    flex: 1 1 0; min-width: 0; max-width: 4.25rem; aspect-ratio: 4 / 5;
     display: grid; place-items: center;
     background: var(--panel); border: 1px solid var(--divider); border-radius: 10px;
     font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 1.75rem; font-weight: 600;
+    font-size: clamp(2.4rem, 12.5vw, 3.5rem); font-weight: 600; line-height: 1;
   }
   .button {
     display: block; width: 100%; margin-top: 1.25rem; padding: 14px 16px; min-height: 48px;
