@@ -83,7 +83,9 @@
   [hidden] { display: none !important; }
 </style>
 <!-- 流量分析(GoatCounter,免費、無 cookie)。目前關閉:需老闆在 goatcounter.com 註冊站台代碼後,
-     把 GC_CODE 改成該代碼即啟用。會把 utm_source/utm_medium/utm_campaign/ct 參數保留在記錄路徑中,其餘參數丟棄。 -->
+     把 GC_CODE 改成該代碼即啟用。會把 utm_source/utm_medium/utm_campaign/ct 參數保留在記錄路徑中,其餘參數丟棄。
+     房間碼(code)不進記錄。ct 是海報 QR 的來源標記(冷啟動 SR-CS-02),與 App 的 src/rooms/join-link.ts
+     用同一條白名單 ^[a-z0-9_-]{1,32}$,不合的丟掉不記。 -->
 <script>
 (function () {
   var GC_CODE = ''; // 例:'sharedroll' → https://sharedroll.goatcounter.com
@@ -91,6 +93,7 @@
   var keep = ['utm_source', 'utm_medium', 'utm_campaign', 'ct'];
   var q = new URLSearchParams(location.search), out = new URLSearchParams();
   keep.forEach(function (k) { if (q.get(k)) out.set(k, q.get(k)); });
+  if (out.has('ct') && !/^[a-z0-9_-]{1,32}$/.test(out.get('ct'))) out.delete('ct');
   var path = location.pathname + (out.toString() ? '?' + out.toString() : '');
   window.goatcounter = { path: path, no_onload: false };
   var s = document.createElement('script');
@@ -108,6 +111,8 @@
     <h1>有人邀你一起拍一卷底片</h1>
     <p class="label">房間碼</p>
     <div class="code" id="code" aria-label="房間碼"></div>
+    <!-- 掃海報來的人可能晚到。這一頁不查房間狀態(不開放匿名查房,避免變成驗房機),只寫靜態說明。 -->
+    <p class="hint">如果這卷已經開始拍,就不能再加入了,請跟主辦人確認。</p>
     <a class="button primary" id="open" href="#">打開 SharedRoll 進房</a>
     <p class="hint">已經裝了 SharedRoll 的話,按上面那顆就直接進房。</p>
     <a class="button" href="https://apps.apple.com/tw/app/sharedroll/id6807250154">還沒裝?到 App Store 免費下載</a>
