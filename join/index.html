@@ -82,6 +82,23 @@
   footer a { color: var(--muted); }
   [hidden] { display: none !important; }
 </style>
+<!-- 流量分析(GoatCounter,免費、無 cookie)。目前關閉:需老闆在 goatcounter.com 註冊站台代碼後,
+     把 GC_CODE 改成該代碼即啟用。會把 utm_source/utm_medium/utm_campaign/ct 參數保留在記錄路徑中,其餘參數丟棄。 -->
+<script>
+(function () {
+  var GC_CODE = ''; // 例:'sharedroll' → https://sharedroll.goatcounter.com
+  if (!GC_CODE) return;
+  var keep = ['utm_source', 'utm_medium', 'utm_campaign', 'ct'];
+  var q = new URLSearchParams(location.search), out = new URLSearchParams();
+  keep.forEach(function (k) { if (q.get(k)) out.set(k, q.get(k)); });
+  var path = location.pathname + (out.toString() ? '?' + out.toString() : '');
+  window.goatcounter = { path: path, no_onload: false };
+  var s = document.createElement('script');
+  s.async = true; s.src = '//gc.zgo.at/count.js';
+  s.setAttribute('data-goatcounter', 'https://' + GC_CODE + '.goatcounter.com/count');
+  document.head.appendChild(s);
+})();
+</script>
 </head>
 <body>
 <main>
@@ -95,13 +112,14 @@
     <p class="hint">已經裝了 SharedRoll 的話,按上面那顆就直接進房。</p>
     <a class="button" href="https://apps.apple.com/tw/app/sharedroll/id6807250154">還沒裝?到 App Store 免費下載</a>
     <p class="hint">裝好之後打開 SharedRoll,按「加入房間」,把上面這六碼輸進去。</p>
-    <p class="hint dim">Android 版即將推出。</p>
+    <a class="button" href="https://play.google.com/store/apps/details?id=com.sharedroll.app">Android?到 Google Play 免費下載</a>
   </section>
 
   <section id="bad" hidden>
     <h1>這條連結不完整</h1>
     <p class="hint">裡面沒有房間碼。請對方再分享一次,或直接跟他要那六碼,在 SharedRoll 裡按「加入房間」輸進去。</p>
     <a class="button" href="https://apps.apple.com/tw/app/sharedroll/id6807250154">還沒裝?到 App Store 免費下載</a>
+    <a class="button" href="https://play.google.com/store/apps/details?id=com.sharedroll.app">Android?到 Google Play 免費下載</a>
   </section>
 </main>
 <footer><a href="https://soymilk0211.github.io/sharedroll-site/">SharedRoll</a> · 一群人,共用一卷底片</footer>
