@@ -1,0 +1,6 @@
+# Cloudflare Pages 專案 sharedroll-join(https://sharedroll-join.pages.dev/)的設定。
+# 這裡沒有、也不能放任何 secret。建置指令在 Pages 後台設定(`npm ci && npm run build`),
+# 細節與後台步驟見 web/README.md。Pages 連 GitHub 建置時會以這份檔案為準(name 要與專案同名)。
+name = "sharedroll-join"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-10-17"

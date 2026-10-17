@@ -5,6 +5,7 @@ import { detectInAppBrowser, externalBrowserUrl } from '../../src/in-app-browser
 import { describeJoinFailure, photoFailure, UNREACHABLE_MESSAGE } from '../../src/failures';
 import { cropToPhotoAspect, fitWithin, orientationOf } from '../../src/photo-shape';
 import { classifyCameraError } from '../../src/camera';
+import { isServingHost } from '../../src/host';
 
 describe('parseRoomCode', () => {
   it('accepts the six-character alphabet, case-insensitively, trimming spaces', () => {
@@ -50,7 +51,7 @@ describe('in-app browser', () => {
   });
   it('adds openExternalBrowser=1 and keeps the code', () => {
     const url = new URL(
-      externalBrowserUrl('https://example.test/sharedroll-site/camera/?code=ABC234'),
+      externalBrowserUrl('https://sharedroll-join.pages.dev/?code=ABC234'),
     );
     expect(url.searchParams.get('code')).toBe('ABC234');
     expect(url.searchParams.get('openExternalBrowser')).toBe('1');
@@ -96,5 +97,25 @@ describe('camera errors', () => {
     expect(classifyCameraError({ name: 'NotFoundError' })).toBe('no-camera');
     expect(classifyCameraError({ name: 'NotReadableError' })).toBe('busy');
     expect(classifyCameraError(new Error('x'))).toBe('other');
+  });
+});
+
+describe('isServingHost', () => {
+  it('runs only on the production Pages host (and local dev)', () => {
+    expect(isServingHost('sharedroll-join.pages.dev')).toBe(true);
+    expect(isServingHost('SharedRoll-Join.pages.dev')).toBe(true);
+    expect(isServingHost('localhost')).toBe(true);
+  });
+  it('treats preview deployments and any other host as closed', () => {
+    for (const host of [
+      'abc123.sharedroll-join.pages.dev',
+      'feat-x.sharedroll-join.pages.dev',
+      'soymilk0211.github.io',
+      'sharedroll-join.pages.dev.evil.test',
+      'evil-sharedroll-join.pages.dev',
+      '',
+    ]) {
+      expect(isServingHost(host)).toBe(false);
+    }
   });
 });

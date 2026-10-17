@@ -1,0 +1,16 @@
+# Cloudflare Pages 的 HTTP 標頭(https://developers.cloudflare.com/pages/configuration/headers/)。
+# 建置時原樣複製到 dist/_headers。原本寫在 web/index.html 的 <meta> CSP 搬到這裡,
+# 多了 meta 做不到的 frame-ancestors(不讓別的網站用 iframe 嵌進來)。
+# 只連得到 Supabase、R2(presigned PUT／GET)與 Turnstile;R2 等 W8 第 3b 步拿到 Account ID 再收窄。
+# CI(.github/workflows/camera.yml → web/scripts/check-pages-output.mjs)會檢查建出來的 dist/_headers。
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://mkqdchybsjccxlnhkqsh.supabase.co https://*.r2.cloudflarestorage.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(self), microphone=(), geolocation=(), payment=()
+  X-Robots-Tag: noindex, nofollow
+  Cross-Origin-Opener-Policy: same-origin
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
