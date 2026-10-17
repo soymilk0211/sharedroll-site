@@ -4,6 +4,7 @@ import {
   MAX_DOWNLOAD_BATCH,
   PAGE_SIZE,
   PhotoLoader,
+  isJpeg,
   describeKeepLeft,
   downloadName,
   readRevealPhotos,
@@ -142,6 +143,10 @@ describe('download name', () => {
   it('strips path characters and never contains an author', () => {
     expect(downloadName('畢業/旅行:<1>', 0)).toBe('畢業旅行1-01.jpg');
     expect(downloadName('', 11)).toBe('SharedRoll-12.jpg');
+    // 雙向文字控制(讓檔名看起來是 .exe 之類)、零寬字元、開頭的點都拿掉;emoji 不切半。
+    expect(downloadName('旅\u202egpj.exe\u200b', 0)).toBe('旅gpj.exe-01.jpg');
+    expect(downloadName('..hidden', 0)).toBe('hidden-01.jpg');
+    expect(downloadName('😀'.repeat(50), 0)).toBe(`${'😀'.repeat(40)}-01.jpg`);
   });
 });
 
@@ -181,7 +186,8 @@ describe('transfer code', () => {
 });
 
 describe('PhotoLoader', () => {
-  function setup(options: { failSign?: () => boolean } = {}) {
+  const JPEG_HEAD = new Uint8Array([0xff, 0xd8, 0xff, 0xe0]);
+  function setup(options: { failSign?: () => boolean; body?: (url: string) => BlobPart } = {}) {
     let signs = 0;
     const gets: string[] = [];
     const released: string[] = [];
@@ -208,7 +214,7 @@ describe('PhotoLoader', () => {
     backend.fetchBlob = async (url) => {
       gets.push(url);
       if (gate) await new Promise<void>((resolve) => (gate = resolve));
-      return { blob: new Blob([url]), status: 200 };
+      return { blob: new Blob([options.body ? options.body(url) : JPEG_HEAD]), status: 200 };
     };
     let clock = 0;
     const ids = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'];
@@ -267,5 +273,29 @@ describe('PhotoLoader', () => {
     expect(t.signs()).toBe(2);
     await t.loader.load('p3', 'p3');
     expect(t.signs()).toBe(2); // 退避中,不重打
+  });
+
+  it('refuses bytes that are not a JPEG and never trusts the server content type', async () => {
+    const t = setup({ body: (url) => (url.endsWith('p2') ? '<svg onload=alert(1)>' : JPEG_HEAD) });
+    expect(await t.loader.load('p2', 'p2')).toBeNull();
+    const ok = await t.loader.load('p1', 'p1');
+    expect(ok?.blob.type).toBe('image/jpeg');
+  });
+
+  it('releases everything and loads nothing once disposed (7-day lock)', async () => {
+    const t = setup();
+    const entry = await t.loader.load('p1', 'p1');
+    t.loader.dispose();
+    expect(t.released).toContain(entry!.url);
+    expect(t.loader.cached('p1')).toBeUndefined();
+    expect(await t.loader.load('p2', 'p2')).toBeNull();
+  });
+});
+
+describe('isJpeg', () => {
+  it('checks the FF D8 FF header', async () => {
+    expect(await isJpeg(new Blob([new Uint8Array([0xff, 0xd8, 0xff])]))).toBe(true);
+    expect(await isJpeg(new Blob(['GIF89a']))).toBe(false);
+    expect(await isJpeg(new Blob([]))).toBe(false);
   });
 });

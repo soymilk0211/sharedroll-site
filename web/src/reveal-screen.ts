@@ -55,10 +55,17 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
   const next = $('next') as HTMLButtonElement;
   const download = $('download') as HTMLButtonElement;
   const count = $('reveal-count');
+  let locked = false;
+  let loader: PhotoLoader | null = null;
+  // 鎖住是真的鎖住:之後翻頁、鍵盤、滑動、下載都不再動作,手上的照片也放掉。
+  // (伺服器那邊訪客帳號要到開箱後 7 天才過期,這一層是網頁對「只保留 7 天」的承諾。)
   const lockViewer = (message: string) => {
+    locked = true;
+    loader?.dispose();
     img.removeAttribute('src');
     status.textContent = message;
     prev.hidden = next.hidden = download.hidden = true;
+    prev.disabled = next.disabled = download.disabled = true;
   };
 
   /** 頂部那一行。回傳還看不看得到(過了 7 天就鎖住翻頁與下載)。 */
@@ -106,16 +113,23 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
     return;
   }
 
-  const loader = new PhotoLoader(
+  const photoLoader = new PhotoLoader(
     backend,
     list.map((photo) => photo.id),
     { limit: CACHE_LIMIT },
   );
+  loader = photoLoader;
+  if (locked) {
+    photoLoader.dispose();
+    return;
+  }
+
   let index = 0;
   let showing = 0;
   let failed = false;
 
   const render = async () => {
+    if (locked) return;
     const ticket = ++showing;
     const photo = list[index];
     count.textContent = describeCount(index, list.length);
@@ -125,9 +139,9 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
     failed = false;
     status.textContent = '載入中…';
     img.removeAttribute('src');
-    const entry = await loader.load(photo.id, photo.id).catch(() => null);
+    const entry = await photoLoader.load(photo.id, photo.id).catch(() => null);
     // 翻頁比下載快:晚回來的舊照片不蓋掉現在這一張。
-    if (ticket !== showing) return;
+    if (ticket !== showing || locked) return;
     if (!entry) {
       failed = true;
       status.textContent = '這一張現在載不到,點一下這裡再試一次';
@@ -138,17 +152,17 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
     download.disabled = false;
     // 預先載下一張,翻頁不必等。
     const following = list[index + 1];
-    if (following) void loader.load(following.id, photo.id).catch(() => undefined);
+    if (following) void photoLoader.load(following.id, photo.id).catch(() => undefined);
   };
 
   prev.addEventListener('click', () => {
-    if (index > 0) {
+    if (!locked && index > 0) {
       index -= 1;
       void render();
     }
   });
   next.addEventListener('click', () => {
-    if (index < list.length - 1) {
+    if (!locked && index < list.length - 1) {
       index += 1;
       void render();
     }
@@ -175,10 +189,11 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
   });
 
   download.addEventListener('click', async () => {
-    const entry = loader.cached(list[index].id);
+    if (locked) return;
+    const entry = photoLoader.cached(list[index].id);
     if (!entry) return;
     const name = downloadName(room.name ?? '', index);
-    const file = new File([entry.blob], name, { type: entry.blob.type || 'image/jpeg' });
+    const file = new File([entry.blob], name, { type: 'image/jpeg' });
     if (prefersShareSheet() && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file] });
@@ -203,6 +218,16 @@ let transferWired = false;
 let transferBackend: Backend | null = null;
 let transferShow: ((screen: 'reveal' | 'transfer') => void) | null = null;
 let issueSeq = 0;
+let expiryTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** 把碼從畫面上拿掉(離開、過期、頁面收起來都要)。 */
+function clearCode(note = ''): void {
+  issueSeq += 1;
+  clearTimeout(expiryTimer);
+  $('transfer-code').textContent = '';
+  $('transfer-expiry').textContent = note;
+  ($('transfer-again') as HTMLButtonElement).disabled = false;
+}
 
 async function issue(): Promise<void> {
   const backend = transferBackend;
@@ -228,6 +253,11 @@ async function issue(): Promise<void> {
   }
   codeBox.textContent = groupCode(outcome.code);
   expiry.textContent = `${formatExpiry(outcome.expiresAt)}(15 分鐘,只能用一次)`;
+  clearTimeout(expiryTimer);
+  expiryTimer = setTimeout(
+    () => clearCode('這組碼已經過期,按下面的「重新拿一組」。'),
+    Math.max(0, outcome.expiresAt.getTime() - Date.now()),
+  );
 }
 
 /** 轉移碼頁:每次進來都向伺服器拿一組新的(舊的那組伺服器會作廢)。 */
@@ -243,12 +273,11 @@ export async function transferScreen(
     $('transfer-again').addEventListener('click', () => void issue());
     $('transfer-back').addEventListener('click', () => {
       // 離開這一頁:作廢還在路上的那一次,並把碼從畫面上拿掉,不留在 DOM 裡。
-      issueSeq += 1;
-      $('transfer-code').textContent = '';
-      $('transfer-expiry').textContent = '';
-      ($('transfer-again') as HTMLButtonElement).disabled = false;
+      clearCode();
       transferShow?.('reveal');
     });
+    // 頁面收起來(換 App、進 bfcache)就不留著碼。
+    window.addEventListener('pagehide', () => clearCode());
   }
   await issue();
 }

@@ -112,6 +112,7 @@ export interface LoadedPhoto {
  * - 快取最多留 `limit` 張,撤掉最舊的,但從不撤掉 `keep` 指名的那一張(畫面上正在用的)。
  */
 export class PhotoLoader {
+  private disposed = false;
   private signed: SignedBatch | null = null;
   private signing: Promise<SignedBatch | null> | null = null;
   private readonly cache = new Map<string, LoadedPhoto>();
@@ -154,6 +155,7 @@ export class PhotoLoader {
   }
 
   load(photoId: string, keep: string): Promise<LoadedPhoto | null> {
+    if (this.disposed) return Promise.resolve(null);
     const hit = this.cache.get(photoId);
     if (hit) return Promise.resolve(hit);
     const pending = this.inflight.get(photoId);
@@ -162,8 +164,11 @@ export class PhotoLoader {
       const batch = await this.ensureSigned();
       const urls = batch?.urls.get(photoId);
       if (!urls) return null;
-      const { blob } = await this.backend.fetchBlob(urls.full.url);
-      if (!blob) return null;
+      const { blob: raw } = await this.backend.fetchBlob(urls.full.url);
+      if (this.disposed || !raw || !(await isJpeg(raw))) return null;
+      // 型別一律自己定成 JPEG,不沿用 R2 回的 Content-Type:blob: 網址繼承本站來源,
+      // 別人上傳的東西如果被當成 SVG/HTML 在新分頁打開,就能讀到這裡的登入狀態。
+      const blob = new Blob([raw], { type: 'image/jpeg' });
       const entry = { blob, url: (this.options.createUrl ?? URL.createObjectURL)(blob) };
       this.cache.set(photoId, entry);
       this.evict(keep);
@@ -175,6 +180,15 @@ export class PhotoLoader {
     return task;
   }
 
+  /** 鎖住(過了 7 天)時:把手上所有照片放掉,之後的 load 一律回 null。 */
+  dispose(): void {
+    this.disposed = true;
+    for (const entry of this.cache.values()) {
+      (this.options.revokeUrl ?? URL.revokeObjectURL)(entry.url);
+    }
+    this.cache.clear();
+  }
+
   private evict(keep: string): void {
     for (const [id, entry] of this.cache) {
       if (this.cache.size <= this.options.limit) break;
@@ -183,6 +197,12 @@ export class PhotoLoader {
       this.cache.delete(id);
     }
   }
+}
+
+/** JPEG 檔頭 FF D8 FF。不是 JPEG 的就不顯示(上傳端只會傳 JPEG)。 */
+export async function isJpeg(blob: Blob): Promise<boolean> {
+  const head = new Uint8Array(await blob.slice(0, 3).arrayBuffer());
+  return head.length === 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff;
 }
 
 /** 網頁版看得到的最後一刻:開箱後 7 天。 */
@@ -207,10 +227,15 @@ export function describeCount(index: number, total: number): string {
 
 /** 下載時的檔名:不帶任何人的名字,只帶房間與序號。 */
 export function downloadName(roomName: string, index: number): string {
-  const safe =
-    roomName
-      .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
-      .trim()
-      .slice(0, 40) || 'SharedRoll';
+  // 控制字元、雙向文字控制、零寬字元都拿掉(不讓房名把副檔名「看起來」換掉),開頭的點也拿掉
+  // (不變成隱藏檔);用 Array.from 切,不把 emoji 切成半個。
+  const cleaned = roomName
+    .replace(
+      /[\\/:*?"<>|\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g,
+      '',
+    )
+    .trim()
+    .replace(/^\.+/, '');
+  const safe = Array.from(cleaned).slice(0, 40).join('').trim() || 'SharedRoll';
   return `${safe}-${String(index + 1).padStart(2, '0')}.jpg`;
 }

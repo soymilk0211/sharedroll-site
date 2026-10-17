@@ -71,7 +71,12 @@ export function createSupabaseBackend(): Backend {
     async fetchBlob(url) {
       // credentials: 'omit':presigned 網址自己帶著授權,不送任何 cookie;referrer 由頁面的
       // no-referrer 擋著,不會把房間碼帶到 R2 的記錄裡。
-      const response = await fetch(url, { credentials: 'omit', cache: 'no-store' });
+      // 只抓 R2 的 https 網址:Edge Function 出錯時也不會被帶去抓別的地方。
+      const target = new URL(url);
+      if (target.protocol !== 'https:' || !target.hostname.endsWith('.r2.cloudflarestorage.com')) {
+        return { blob: null, status: 0 };
+      }
+      const response = await fetch(target, { credentials: 'omit', cache: 'no-store' });
       return { blob: response.ok ? await response.blob() : null, status: response.status };
     },
     async put(url, body, contentType) {

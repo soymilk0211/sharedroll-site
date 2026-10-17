@@ -60,7 +60,9 @@ export function fakeBackend(options: {
     },
     async fetchBlob(url) {
       calls.push({ kind: 'get', name: url, args: null });
-      const blob = options.blob ? options.blob(url) : new Blob(['x']);
+      const blob = options.blob
+        ? options.blob(url)
+        : new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])]);
       return { blob, status: blob ? 200 : 403 };
     },
     async put(url, body, contentType) {
