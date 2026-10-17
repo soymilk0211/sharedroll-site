@@ -1,0 +1,394 @@
+{
+  "version": 1,
+  "recipes": [
+    {
+      "key": "warm_portrait",
+      "name": "溫潤人像",
+      "exposureEv": 0.5,
+      "temperaturePercent": 0,
+      "contrastPercent": -12,
+      "saturationPercent": -8,
+      "clarityPercent": 0,
+      "shadowFade": 0,
+      "colorBalance": {
+        "highlights": {
+          "r": 4,
+          "g": 2,
+          "b": -4
+        },
+        "midtones": {
+          "r": 2,
+          "g": 1,
+          "b": -2
+        },
+        "shadows": {
+          "r": -2,
+          "g": 0,
+          "b": 3
+        }
+      },
+      "curves": {
+        "red": [
+          {
+            "x": 0,
+            "y": 10
+          },
+          {
+            "x": 128,
+            "y": 135
+          },
+          {
+            "x": 255,
+            "y": 245
+          }
+        ],
+        "green": [
+          {
+            "x": 0,
+            "y": 10
+          },
+          {
+            "x": 128,
+            "y": 130
+          },
+          {
+            "x": 255,
+            "y": 245
+          }
+        ],
+        "blue": [
+          {
+            "x": 0,
+            "y": 15
+          },
+          {
+            "x": 128,
+            "y": 124
+          },
+          {
+            "x": 255,
+            "y": 240
+          }
+        ]
+      },
+      "grain": {
+        "densityPercent": 15,
+        "roughnessPercent": 20
+      },
+      "flash": {
+        "centerBoostPercent": 20,
+        "edgeVignettePercent": 15
+      },
+      "halation": null
+    },
+    {
+      "key": "clear_daylight",
+      "name": "日系清透",
+      "exposureEv": 0,
+      "temperaturePercent": 0,
+      "contrastPercent": 10,
+      "saturationPercent": 5,
+      "clarityPercent": -15,
+      "shadowFade": 0,
+      "colorBalance": {
+        "highlights": {
+          "r": -3,
+          "g": 2,
+          "b": 4
+        },
+        "midtones": {
+          "r": -1,
+          "g": 3,
+          "b": 1
+        },
+        "shadows": {
+          "r": 1,
+          "g": -2,
+          "b": -1
+        }
+      },
+      "curves": {
+        "red": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 128,
+            "y": 122
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ],
+        "green": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 128,
+            "y": 134
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ],
+        "blue": [
+          {
+            "x": 0,
+            "y": 5
+          },
+          {
+            "x": 128,
+            "y": 132
+          },
+          {
+            "x": 255,
+            "y": 250
+          }
+        ]
+      },
+      "grain": {
+        "densityPercent": 13,
+        "roughnessPercent": 35
+      },
+      "flash": {
+        "centerBoostPercent": 25,
+        "edgeVignettePercent": 20
+      },
+      "halation": null
+    },
+    {
+      "key": "nostalgic_gold",
+      "name": "懷舊日常",
+      "exposureEv": 0.3,
+      "temperaturePercent": 15,
+      "contrastPercent": 5,
+      "saturationPercent": 12,
+      "clarityPercent": 0,
+      "shadowFade": 8,
+      "colorBalance": {
+        "highlights": {
+          "r": 8,
+          "g": 5,
+          "b": -10
+        },
+        "midtones": {
+          "r": 5,
+          "g": 3,
+          "b": -6
+        },
+        "shadows": {
+          "r": 2,
+          "g": 1,
+          "b": -2
+        }
+      },
+      "curves": {
+        "red": [
+          {
+            "x": 0,
+            "y": 5
+          },
+          {
+            "x": 128,
+            "y": 138
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ],
+        "green": [
+          {
+            "x": 0,
+            "y": 5
+          },
+          {
+            "x": 128,
+            "y": 133
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ],
+        "blue": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 128,
+            "y": 115
+          },
+          {
+            "x": 255,
+            "y": 235
+          }
+        ]
+      },
+      "grain": {
+        "densityPercent": 30,
+        "roughnessPercent": 45
+      },
+      "flash": {
+        "centerBoostPercent": 40,
+        "edgeVignettePercent": 35
+      },
+      "halation": null
+    },
+    {
+      "key": "neon_night",
+      "name": "電影霓虹",
+      "exposureEv": -0.5,
+      "temperaturePercent": -20,
+      "contrastPercent": 18,
+      "saturationPercent": 0,
+      "clarityPercent": 0,
+      "shadowFade": 0,
+      "colorBalance": {
+        "highlights": {
+          "r": -5,
+          "g": -2,
+          "b": 8
+        },
+        "midtones": {
+          "r": -8,
+          "g": 0,
+          "b": 10
+        },
+        "shadows": {
+          "r": -4,
+          "g": 2,
+          "b": 2
+        }
+      },
+      "curves": {
+        "red": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 128,
+            "y": 120
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ],
+        "green": [
+          {
+            "x": 0,
+            "y": 0
+          },
+          {
+            "x": 128,
+            "y": 128
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ],
+        "blue": [
+          {
+            "x": 0,
+            "y": 10
+          },
+          {
+            "x": 128,
+            "y": 142
+          },
+          {
+            "x": 255,
+            "y": 255
+          }
+        ]
+      },
+      "grain": {
+        "densityPercent": 20,
+        "roughnessPercent": 40
+      },
+      "flash": null,
+      "halation": {
+        "lumaThreshold": 230,
+        "thresholdKnee": 10,
+        "localityRadiusPx": 90,
+        "maskFrom": "source",
+        "blurRadiusPx": 30,
+        "gain": 2.5,
+        "ringOnly": true
+      }
+    },
+    {
+      "key": "high_iso_mono",
+      "name": "高感光黑白",
+      "exposureEv": -0.3,
+      "temperaturePercent": 0,
+      "contrastPercent": 25,
+      "saturationPercent": -100,
+      "clarityPercent": 10,
+      "shadowFade": 0,
+      "colorBalance": null,
+      "curves": {
+        "red": [
+          {
+            "x": 0,
+            "y": 8
+          },
+          {
+            "x": 128,
+            "y": 120
+          },
+          {
+            "x": 255,
+            "y": 250
+          }
+        ],
+        "green": [
+          {
+            "x": 0,
+            "y": 8
+          },
+          {
+            "x": 128,
+            "y": 120
+          },
+          {
+            "x": 255,
+            "y": 250
+          }
+        ],
+        "blue": [
+          {
+            "x": 0,
+            "y": 8
+          },
+          {
+            "x": 128,
+            "y": 120
+          },
+          {
+            "x": 255,
+            "y": 250
+          }
+        ]
+      },
+      "grain": {
+        "densityPercent": 31,
+        "roughnessPercent": 60
+      },
+      "flash": {
+        "centerBoostPercent": 30,
+        "edgeVignettePercent": 25
+      },
+      "halation": null
+    }
+  ]
+}
