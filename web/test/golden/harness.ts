@@ -6,7 +6,9 @@ import { createFilmRenderer } from '../../src/film/webgl';
 
 declare global {
   interface Window {
-    __golden?: { ok: true; results: Record<string, string>; width: number; height: number } | { ok: false; error: string };
+    __golden?:
+      | { ok: true; results: Record<string, string>; width: number; height: number }
+      | { ok: false; error: string };
   }
 }
 

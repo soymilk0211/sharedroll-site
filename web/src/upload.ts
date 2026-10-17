@@ -26,8 +26,7 @@ interface SignedObject {
 }
 
 type SignResponse =
-  | { ok: true; full: SignedObject; thumbnail: SignedObject }
-  | { ok: false; reason: string };
+  { ok: true; full: SignedObject; thumbnail: SignedObject } | { ok: false; reason: string };
 
 interface FinalizeRow {
   granted: boolean;
@@ -54,7 +53,12 @@ async function claim(backend: Backend, shot: Shot): Promise<string> {
   return row.photo_id;
 }
 
-async function upload(backend: Backend, photoId: string, full: Blob, thumbnail: Blob): Promise<void> {
+async function upload(
+  backend: Backend,
+  photoId: string,
+  full: Blob,
+  thumbnail: Blob,
+): Promise<void> {
   const signed = await backend.invoke('photo-storage', {
     action: 'upload',
     photoId,
@@ -87,8 +91,7 @@ export async function sendShot(backend: Backend, shot: Shot, now: number): Promi
     return { ...shot, photoId, state: 'uploaded', reason: null, full: null, thumbnail: null };
   } catch (error) {
     const reason = error instanceof StepFailure ? error.reason : 'unreachable';
-    const failure =
-      reason === 'file-missing' ? { reason, permanent: true } : photoFailure(reason);
+    const failure = reason === 'file-missing' ? { reason, permanent: true } : photoFailure(reason);
     const attempts = shot.attempts + 1;
     return {
       ...shot,

@@ -12,8 +12,7 @@ import { UNREACHABLE_MESSAGE, describeJoinFailure } from './failures';
 import { nicknameProblem, normalizeNickname } from './nickname';
 
 export type JoinOutcome =
-  | { ok: true; roomId: string; userId: string }
-  | { ok: false; message: string };
+  { ok: true; roomId: string; userId: string } | { ok: false; message: string };
 
 export interface JoinRequest {
   code: string;

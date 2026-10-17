@@ -174,7 +174,12 @@ export class FilmRenderer {
    * `colorConversion` 為 false 時不讓瀏覽器做色彩空間轉換——golden 比對要拿檔案裡的原始數字。
    * 相機畫面則交給瀏覽器轉成 sRGB(與 App 離屏畫布明講 sRGB 同一個立場)。
    */
-  upload(source: TexImageSource, width: number, height: number, colorConversion = true): FilmTexture {
+  upload(
+    source: TexImageSource,
+    width: number,
+    height: number,
+    colorConversion = true,
+  ): FilmTexture {
     const gl = this.gl;
     const result = this.allocate(width, height, gl.LINEAR);
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
@@ -266,11 +271,16 @@ export class FilmRenderer {
 
   /** 取來源的一塊,線性取樣到指定大小。裁切與等比縮放都走這裡。 */
   crop(source: FilmTexture, rect: SourceRect, size: RenderSize): FilmTexture {
-    return this.run(this.programs.scale, size, { image: source }, {
-      imageSize: this.size(source),
-      sourceRect: [rect.x, rect.y, rect.width, rect.height],
-      targetSize: [size.width, size.height],
-    }) as FilmTexture;
+    return this.run(
+      this.programs.scale,
+      size,
+      { image: source },
+      {
+        imageSize: this.size(source),
+        sourceRect: [rect.x, rect.y, rect.width, rect.height],
+        targetSize: [size.width, size.height],
+      },
+    ) as FilmTexture;
   }
 
   private scale(source: FilmTexture, width: number): FilmTexture {
@@ -300,16 +310,26 @@ export class FilmRenderer {
   private blur(source: FilmTexture, radius: number): FilmTexture {
     const sigma = radius * BLUR_SIGMA_PER_RADIUS;
     const size = { width: source.width, height: source.height };
-    const horizontal = this.run(this.programs.blur, size, { image: source }, {
-      imageSize: this.size(source),
-      direction: [1, 0],
-      sigma: [sigma],
-    }) as FilmTexture;
-    const vertical = this.run(this.programs.blur, size, { image: horizontal }, {
-      imageSize: this.size(source),
-      direction: [0, 1],
-      sigma: [sigma],
-    }) as FilmTexture;
+    const horizontal = this.run(
+      this.programs.blur,
+      size,
+      { image: source },
+      {
+        imageSize: this.size(source),
+        direction: [1, 0],
+        sigma: [sigma],
+      },
+    ) as FilmTexture;
+    const vertical = this.run(
+      this.programs.blur,
+      size,
+      { image: horizontal },
+      {
+        imageSize: this.size(source),
+        direction: [0, 1],
+        sigma: [sigma],
+      },
+    ) as FilmTexture;
     this.release(horizontal);
     return vertical;
   }
@@ -327,10 +347,15 @@ export class FilmRenderer {
       return texture;
     };
     const mask = keep(
-      this.run(this.programs.mask, working, { image: source }, {
-        imageSize,
-        ...highlightMaskUniforms(recipe),
-      }) as FilmTexture,
+      this.run(
+        this.programs.mask,
+        working,
+        { image: source },
+        {
+          imageSize,
+          ...highlightMaskUniforms(recipe),
+        },
+      ) as FilmTexture,
     );
     const surroundings = keep(
       this.blur(mask, scaledRadius(halation.localityRadiusPx, working.width)),
@@ -341,10 +366,15 @@ export class FilmRenderer {
     const radius = scaledRadius(halation.blurRadiusPx, working.width);
     const spread = keep(this.blur(local, radius));
     const core = keep(this.blur(local, Math.max(1, Math.round(radius * HALATION_CORE_BLUR_RATIO))));
-    return this.run(this.programs.ring, working, { spread, core }, {
-      imageSize,
-      ...ringUniforms(recipe),
-    }) as FilmTexture;
+    return this.run(
+      this.programs.ring,
+      working,
+      { spread, core },
+      {
+        imageSize,
+        ...ringUniforms(recipe),
+      },
+    ) as FilmTexture;
   }
 
   /**
@@ -353,7 +383,12 @@ export class FilmRenderer {
    * 網頁拿不到 ISO 與閃光燈:顆粒用配方的基礎密度(`iso: null`,App 讀不到 ISO 時同一條路),
    * 閃光燈遮罩不套。`iso` 只給 golden 比對用(golden 圖是 ISO 400 燒的)。
    */
-  render(source: FilmTexture, filter: FilmFilterKey, seed: number, iso: number | null = null): FilmTexture {
+  render(
+    source: FilmTexture,
+    filter: FilmFilterKey,
+    seed: number,
+    iso: number | null = null,
+  ): FilmTexture {
     const recipe = recipeFor(filter);
     const size = { width: source.width, height: source.height };
     const working = workingSizeFor(size);
@@ -368,10 +403,15 @@ export class FilmRenderer {
       }
       let clarityBlur = source;
       if (recipe.clarityPercent !== 0) {
-        const gradedSmall = this.run(this.programs.grade, working, { image: small, lut }, {
-          imageSize: this.size(small),
-          ...gradeUniforms(recipe),
-        }) as FilmTexture;
+        const gradedSmall = this.run(
+          this.programs.grade,
+          working,
+          { image: small, lut },
+          {
+            imageSize: this.size(small),
+            ...gradeUniforms(recipe),
+          },
+        ) as FilmTexture;
         scratch.push(gradedSmall);
         clarityBlur = this.blur(gradedSmall, scaledRadius(CLARITY_RADIUS, working.width));
         scratch.push(clarityBlur);
@@ -404,7 +444,13 @@ export class FilmRenderer {
   read(texture: FilmTexture): Uint8ClampedArray<ArrayBuffer> {
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer);
-    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture.texture, 0);
+    gl.framebufferTexture2D(
+      gl.FRAMEBUFFER,
+      gl.COLOR_ATTACHMENT0,
+      gl.TEXTURE_2D,
+      texture.texture,
+      0,
+    );
     const pixels = new Uint8ClampedArray(texture.width * texture.height * 4);
     gl.readPixels(0, 0, texture.width, texture.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
     return pixels;
@@ -423,7 +469,9 @@ export class FilmRenderer {
 }
 
 /** 開一個給濾鏡用的 WebGL2 環境。不支援 WebGL2 回 null。 */
-export function createFilmRenderer(canvas: HTMLCanvasElement | OffscreenCanvas): FilmRenderer | null {
+export function createFilmRenderer(
+  canvas: HTMLCanvasElement | OffscreenCanvas,
+): FilmRenderer | null {
   const gl = canvas.getContext('webgl2', {
     alpha: false,
     antialias: false,

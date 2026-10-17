@@ -49,7 +49,9 @@ describe('in-app browser', () => {
     ).toBeNull();
   });
   it('adds openExternalBrowser=1 and keeps the code', () => {
-    const url = new URL(externalBrowserUrl('https://example.test/sharedroll-site/camera/?code=ABC234'));
+    const url = new URL(
+      externalBrowserUrl('https://example.test/sharedroll-site/camera/?code=ABC234'),
+    );
     expect(url.searchParams.get('code')).toBe('ABC234');
     expect(url.searchParams.get('openExternalBrowser')).toBe('1');
   });
@@ -77,8 +79,14 @@ describe('photo shape', () => {
     expect(orientationOf(10, 10)).toBe('landscape');
   });
   it('caps the long edge', () => {
-    expect(fitWithin({ x: 0, y: 0, width: 8064, height: 5376 }, 4032)).toEqual({ width: 4032, height: 2688 });
-    expect(fitWithin({ x: 0, y: 0, width: 1200, height: 800 }, 4032)).toEqual({ width: 1200, height: 800 });
+    expect(fitWithin({ x: 0, y: 0, width: 8064, height: 5376 }, 4032)).toEqual({
+      width: 4032,
+      height: 2688,
+    });
+    expect(fitWithin({ x: 0, y: 0, width: 1200, height: 800 }, 4032)).toEqual({
+      width: 1200,
+      height: 800,
+    });
   });
 });
 

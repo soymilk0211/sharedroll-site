@@ -60,7 +60,9 @@ export function describeRoom(
   unclaimedLocal: number,
   now: Date,
 ): RoomView {
-  const filter: FilmFilterKey = isFilmFilterKey(room.film_filter) ? room.film_filter : 'warm_portrait';
+  const filter: FilmFilterKey = isFilmFilterKey(room.film_filter)
+    ? room.film_filter
+    : 'warm_portrait';
   const unlockAt = room.unlock_at ? new Date(room.unlock_at) : null;
   const unlockText = unlockAt ? formatUnlock(unlockAt, room.time_zone) : null;
   const base = { name: room.name?.trim() || '這一卷', filter, unlockText };

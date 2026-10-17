@@ -41,7 +41,9 @@ describe('describeRoom', () => {
 
 describe('time formatting', () => {
   it('writes the unlock time in the room time zone', () => {
-    expect(formatUnlock(new Date('2026-10-18T04:00:00Z'), 'Asia/Tokyo')).toBe('10/18(日)13:00 開箱');
+    expect(formatUnlock(new Date('2026-10-18T04:00:00Z'), 'Asia/Tokyo')).toBe(
+      '10/18(日)13:00 開箱',
+    );
   });
   it('counts down in days, hours, minutes', () => {
     expect(formatCountdown(new Date('2026-10-19T05:00:00Z'), now)).toBe('還有 2 天 3 小時');

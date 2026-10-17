@@ -5,7 +5,13 @@
  */
 
 import type { Backend } from './backend';
-import { classifyCameraError, describeCameraProblem, openCamera, burnFrame, startPreview } from './camera';
+import {
+  classifyCameraError,
+  describeCameraProblem,
+  openCamera,
+  burnFrame,
+  startPreview,
+} from './camera';
 import { parseRoomCode } from './codes';
 import { CONFIG } from './config';
 import { photoFailure } from './failures';
@@ -39,10 +45,18 @@ function showMessage(title: string, body: string): void {
 }
 
 function fillStaticLinks(code: string | null): void {
-  document.querySelectorAll<HTMLAnchorElement>('[data-app-store]').forEach((a) => (a.href = CONFIG.appStoreUrl));
-  document.querySelectorAll<HTMLAnchorElement>('[data-play-store]').forEach((a) => (a.href = CONFIG.playStoreUrl));
-  document.querySelectorAll<HTMLAnchorElement>('[data-privacy]').forEach((a) => (a.href = CONFIG.privacyPolicyUrl));
-  document.querySelectorAll<HTMLAnchorElement>('[data-eula]').forEach((a) => (a.href = CONFIG.eulaUrl));
+  document
+    .querySelectorAll<HTMLAnchorElement>('[data-app-store]')
+    .forEach((a) => (a.href = CONFIG.appStoreUrl));
+  document
+    .querySelectorAll<HTMLAnchorElement>('[data-play-store]')
+    .forEach((a) => (a.href = CONFIG.playStoreUrl));
+  document
+    .querySelectorAll<HTMLAnchorElement>('[data-privacy]')
+    .forEach((a) => (a.href = CONFIG.privacyPolicyUrl));
+  document
+    .querySelectorAll<HTMLAnchorElement>('[data-eula]')
+    .forEach((a) => (a.href = CONFIG.eulaUrl));
   if (!code) return;
   document.querySelectorAll<HTMLElement>('[data-code]').forEach((box) => {
     box.replaceChildren(
@@ -72,10 +86,15 @@ async function showInAppWarning(kind: ReturnType<typeof detectInAppBrowser>): Pr
       $('copy-done').hidden = false;
     }
   });
-  await new Promise<void>((resolve) => $('continue-anyway').addEventListener('click', () => resolve(), { once: true }));
+  await new Promise<void>((resolve) =>
+    $('continue-anyway').addEventListener('click', () => resolve(), { once: true }),
+  );
 }
 
-async function joinScreen(backend: Backend, code: string): Promise<{ roomId: string; userId: string }> {
+async function joinScreen(
+  backend: Backend,
+  code: string,
+): Promise<{ roomId: string; userId: string }> {
   show('join');
   let captcha: Captcha = { token: () => null, reset: () => {} };
   try {
@@ -159,7 +178,10 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
   };
 
   const refreshRoom = async () => {
-    const [room, me] = await Promise.all([backend.readRoom(roomId), backend.readMyParticipant(roomId, userId)]);
+    const [room, me] = await Promise.all([
+      backend.readRoom(roomId),
+      backend.readMyParticipant(roomId, userId),
+    ]);
     if (room.data && me.data) {
       view = describeRoom(room.data, me.data, unclaimedCount(shots), new Date());
     }
@@ -178,7 +200,11 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
   } catch (error) {
     const name = (error as { name?: string }).name;
     const problem =
-      name === 'Insecure' ? 'insecure' : name === 'Unsupported' ? 'unsupported' : classifyCameraError(error);
+      name === 'Insecure'
+        ? 'insecure'
+        : name === 'Unsupported'
+          ? 'unsupported'
+          : classifyCameraError(error);
     cameraError.textContent = describeCameraProblem(problem);
     cameraError.hidden = false;
   }

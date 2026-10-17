@@ -65,7 +65,10 @@ describe('joinAsGuest', () => {
 
   it('reports the server reason when join_room refuses', async () => {
     const { backend } = fakeBackend({
-      rpc: { ...happyRpc, join_room: joined({ joined: false, reason: 'guest-one-roll', room_id: null }) },
+      rpc: {
+        ...happyRpc,
+        join_room: joined({ joined: false, reason: 'guest-one-roll', room_id: null }),
+      },
     });
     const outcome = await joinAsGuest(backend, request);
     expect(outcome.ok).toBe(false);

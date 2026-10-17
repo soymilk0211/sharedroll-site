@@ -23,7 +23,10 @@ function shot(overrides: Partial<Shot> = {}): Shot {
   };
 }
 
-const granted = () => ({ data: [{ granted: true, reason: null, photo_id: 'photo-1' }], error: null });
+const granted = () => ({
+  data: [{ granted: true, reason: null, photo_id: 'photo-1' }],
+  error: null,
+});
 const finalized = () => ({ data: [{ granted: true, reason: null }], error: null });
 const signed = () => ({
   data: {
@@ -58,7 +61,11 @@ describe('sendShot', () => {
       p_taken_at: '2026-10-17T02:00:00.000Z',
       p_orientation: 'landscape',
     });
-    expect(calls[1].args).toEqual({ action: 'upload', photoId: 'photo-1', bytes: { full: 1234, thumbnail: 56 } });
+    expect(calls[1].args).toEqual({
+      action: 'upload',
+      photoId: 'photo-1',
+      bytes: { full: 1234, thumbnail: 56 },
+    });
     expect(calls[2].args).toEqual({ size: 1234, contentType: PHOTO_CONTENT_TYPE });
     expect(calls[3].args).toEqual({ size: 56, contentType: PHOTO_CONTENT_TYPE });
     expect(calls[4].args).toEqual({ p_photo_id: 'photo-1' });
@@ -149,7 +156,9 @@ describe('queue and uploader', () => {
 
   it('skips shots still in back-off and uploads the rest', async () => {
     const store = await openShotStore(new IDBFactory());
-    await store.put(shot({ clientKey: 'a', takenAt: '2026-10-17T02:00:01Z', nextAttemptAt: 99_999 }));
+    await store.put(
+      shot({ clientKey: 'a', takenAt: '2026-10-17T02:00:01Z', nextAttemptAt: 99_999 }),
+    );
     await store.put(shot({ clientKey: 'b', takenAt: '2026-10-17T02:00:02Z' }));
     const { backend } = fakeBackend({
       rpc: { claim_quota_photo: granted, finalize_photo_upload: finalized },
