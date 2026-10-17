@@ -1,5 +1,6 @@
-# 網頁相機(camera/)的檢查。camera/ 是 web/ 建出來、commit 進來的產物(GitHub Pages 直接發佈
-# main 分支的根目錄),所以這裡多一步:重建一次,跟 commit 進來的那一份逐位元組比對。
+# 網頁訪客頁(web/)的檢查。產物 dist/ 由 Cloudflare Pages 專案 sharedroll-join 自己建置發佈
+# (web/README.md),不 commit;這裡用同一條指令建一次,確認建得起來、建出來的東西是 Pages 要的樣子。
+# job 名稱 `check` 是 main 分支保護的必過檢查(W8 第 3c 步),不要改名。
 name: camera
 
 on:
@@ -24,15 +25,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - name: camera/ 跟 web/ 的原始碼一致
-        run: |
-          npm run build
-          if [ -n "$(git status --porcelain camera/)" ]; then
-            git status --porcelain camera/
-            git diff --stat camera/
-            echo "::error::camera/ 不是 web/ 建出來的那一份。在本機跑 npm run build,把 camera/ 一起 commit。"
-            exit 1
-          fi
+      # 與 Cloudflare Pages 後台的建置指令相同(npm ci && npm run build,輸出 dist)。
+      - run: npm run build
+      - name: Pages 產物(dist/)檢查
+        run: node web/scripts/check-pages-output.mjs
       - name: 濾鏡 golden(WebGL2 對 App 的 CanvasKit,ΔE 平均 < 2)
         env:
           CHROME_PATH: /usr/bin/google-chrome

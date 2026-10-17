@@ -1,0 +1,12 @@
+# GitHub Pages(Jekyll)設定:官網、/join/、/pay/ 照舊發佈 main 分支根目錄。
+# 網頁訪客頁(web/)改由 Cloudflare Pages 專案 sharedroll-join 發佈(web/README.md),
+# 原始碼與建置設定不要出現在 soymilk0211.github.io 底下。
+exclude:
+  - web
+  - dist
+  - node_modules
+  - package.json
+  - package-lock.json
+  - tsconfig.json
+  - vite.config.ts
+  - README.md
