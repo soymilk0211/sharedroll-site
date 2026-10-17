@@ -99,6 +99,17 @@ describe('sendShot', () => {
     expect(retry.calls.some((c) => c.name === 'claim_quota_photo')).toBe(false);
   });
 
+  it('treats already-uploaded as done: no PUT, just finalize again (SR-CS-W4b)', async () => {
+    const { backend, calls } = fakeBackend({
+      rpc: { finalize_photo_upload: finalized },
+      invoke: () => ({ data: { ok: false, reason: 'already-uploaded' }, error: null }),
+    });
+    const next = await sendShot(backend, shot({ photoId: 'photo-1' }), 0);
+    expect(next.state).toBe('uploaded');
+    expect(next.full).toBeNull();
+    expect(calls.map((c) => c.name)).toEqual(['photo-storage', 'finalize_photo_upload']);
+  });
+
   it('backs off exponentially up to a minute', async () => {
     const { backend } = fakeBackend({});
     const next = await sendShot(backend, shot({ attempts: 10 }), 0, { random: () => 1 });

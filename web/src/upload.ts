@@ -11,6 +11,8 @@ import { photoFailure } from './failures';
 import type { Shot, ShotStore } from './queue';
 
 export const PHOTO_CONTENT_TYPE = 'image/jpeg';
+/** `photo_upload_grant` 對已 finalize 的照片回的原因(主 repo SR-CS-W4b)。 */
+export const ALREADY_UPLOADED = 'already-uploaded';
 const RETRY_BASE_MS = 5_000;
 const RETRY_MAX_MS = 60_000;
 
@@ -66,11 +68,21 @@ async function upload(
   });
   if (signed.error || !signed.data) throw new StepFailure('function-error');
   const response = signed.data as SignResponse;
+  if (!response.ok && response.reason === ALREADY_UPLOADED) {
+    // 上一次 finalize 寫進去了、回應卻沒回來(SR-CS-W4b:傳完的照片不再簽上傳網址)。位元組早就在
+    // R2 上:不再 PUT,再 finalize 一次(冪等)就是完成。
+    await finalize(backend, photoId);
+    return;
+  }
   if (!response.ok) throw new StepFailure(response.reason);
   const first = await backend.put(response.full.url, full, PHOTO_CONTENT_TYPE);
   if (!first.ok) throw new StepFailure('upload-put-failed');
   const second = await backend.put(response.thumbnail.url, thumbnail, PHOTO_CONTENT_TYPE);
   if (!second.ok) throw new StepFailure('upload-put-failed');
+  await finalize(backend, photoId);
+}
+
+async function finalize(backend: Backend, photoId: string): Promise<void> {
   const finalized = await backend.rpc('finalize_photo_upload', { p_photo_id: photoId });
   if (finalized.error) throw new StepFailure('finalize-error');
   const row = ((finalized.data as FinalizeRow[] | null) ?? [])[0];
