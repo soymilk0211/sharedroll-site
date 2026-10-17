@@ -129,8 +129,8 @@ async function joinScreen(
       if (submit.disabled) return;
       error.hidden = true;
       const token = (captcha as Captcha | null)?.token() ?? null;
-      if (captchaWanted && captcha && token === null) {
-        fail('請先完成上面的驗證');
+      if (captchaWanted && token === null) {
+        fail(captcha ? '請先完成上面的驗證' : '驗證還沒載好,請稍等一下;一直出不來就重新整理這一頁');
         return;
       }
       submit.disabled = true;
@@ -182,6 +182,11 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
   } catch {
     showCameraError('這個瀏覽器不讓網頁存照片(可能是私密瀏覽),請改用一般模式打開');
     return;
+  }
+  try {
+    await store.purge(userId, Date.now());
+  } catch {
+    // 清不掉就下次再清;不擋拍照。
   }
   const uploader = createUploader(backend, store);
   let shots: Shot[] = [];
@@ -344,8 +349,15 @@ async function main(): Promise<void> {
     show('bad-link');
     return;
   }
-  if (!CONFIG.webJoinEnabled) {
+  // Turnstile 是上線的硬性前提(匿名帳號很便宜,沒有它,窮舉房間碼的速度只受 IP 限制):
+  // 開關打開了、site key 卻沒填,照樣當作還沒開放。
+  if (!CONFIG.webJoinEnabled || CONFIG.turnstileSiteKey === '') {
     show('closed');
+    return;
+  }
+  // 被別的網站用 iframe 嵌進去(clickjacking):GitHub Pages 設不了 frame-ancestors,這裡自己擋。
+  if (window.top !== window.self) {
+    showMessage('請直接打開這個網址', '這一頁不能放在別的網站裡面使用。');
     return;
   }
   const inApp = detectInAppBrowser(navigator.userAgent);

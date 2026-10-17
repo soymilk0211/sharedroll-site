@@ -1,7 +1,13 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
-import { openShotStore, pendingCount, unclaimedCount, type Shot } from '../../src/queue';
+import {
+  KEEP_DONE_MS,
+  openShotStore,
+  pendingCount,
+  unclaimedCount,
+  type Shot,
+} from '../../src/queue';
 import { createUploader, sendShot, PHOTO_CONTENT_TYPE } from '../../src/upload';
 import { fakeBackend } from './fake-backend';
 
@@ -228,5 +234,21 @@ describe('queue and uploader', () => {
     const shots = await createUploader(backend, store).drain('guest-1', 'room-1', () => 0);
     expect(shots.find((s) => s.clientKey === 'a')!.state).toBe('waiting');
     expect(shots.find((s) => s.clientKey === 'b')!.state).toBe('uploaded');
+  });
+
+  it("purges other accounts' rows and old finished rows, but keeps this guest's unsent photos", async () => {
+    const store = await openShotStore(new IDBFactory());
+    const now = Date.parse('2026-10-17T02:00:00Z');
+    const old = new Date(now - KEEP_DONE_MS - 1).toISOString();
+    await store.put(shot({ clientKey: 'mine-waiting-old', takenAt: old }));
+    await store.put(shot({ clientKey: 'mine-uploaded-old', takenAt: old, state: 'uploaded' }));
+    await store.put(shot({ clientKey: 'mine-uploaded-new', state: 'uploaded' }));
+    await store.put(shot({ clientKey: 'someone-else', userId: 'guest-2' }));
+    expect(await store.purge('guest-1', now)).toBe(2);
+    expect((await store.list('guest-1', 'room-1')).map((s) => s.clientKey).sort()).toEqual([
+      'mine-uploaded-new',
+      'mine-waiting-old',
+    ]);
+    expect(await store.list('guest-2', 'room-1')).toEqual([]);
   });
 });

@@ -25,7 +25,13 @@ const WEEKDAY = ['日', '一', '二', '三', '四', '五', '六'];
 
 /** 以這一卷的時區寫出開箱時刻。 */
 export function formatUnlock(unlockAt: Date, timeZone: string | null): string {
-  const zone = timeZone ?? 'Asia/Taipei';
+  let zone = timeZone ?? 'Asia/Taipei';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+  } catch {
+    // 資料庫認得、瀏覽器不認得的時區名稱(例如 posix/…):退回台北,不要讓整個相機頁卡住。
+    zone = 'Asia/Taipei';
+  }
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: zone,
     month: 'numeric',

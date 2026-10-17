@@ -34,11 +34,27 @@ describe('joinAsGuest', () => {
     expect(calls[3].args).toEqual({ p_code: 'ABC234' });
   });
 
-  it('reuses an existing session instead of creating a second account', async () => {
+  it('reuses an existing session instead of creating a second account, joining before renaming', async () => {
     const { backend, calls } = fakeBackend({ userId: 'guest-old', rpc: happyRpc });
     const outcome = await joinAsGuest(backend, request);
     expect(outcome).toEqual({ ok: true, roomId: 'room-1', userId: 'guest-old' });
-    expect(calls.some((c) => c.name === 'signInAnonymously')).toBe(false);
+    expect(calls.map((c) => c.name)).toEqual([
+      'accept_terms',
+      'join_room',
+      'complete_profile_setup',
+    ]);
+  });
+
+  it('does not rename a guest whose join is refused (their other roll keeps the old name)', async () => {
+    const { backend, calls } = fakeBackend({
+      userId: 'guest-old',
+      rpc: {
+        ...happyRpc,
+        join_room: joined({ joined: false, reason: 'guest-one-roll', room_id: null }),
+      },
+    });
+    expect((await joinAsGuest(backend, request)).ok).toBe(false);
+    expect(calls.some((c) => c.name === 'complete_profile_setup')).toBe(false);
   });
 
   it('touches nothing on the server when the form is invalid', async () => {

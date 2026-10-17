@@ -11,7 +11,7 @@
   CSP:只連得到 Supabase、R2(presigned 上傳)與 Turnstile。匿名 session 存在 localStorage,
   所以這一頁不能載任何第三方腳本——一段被塞進來的腳本就讀得走它。
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://mkqdchybsjccxlnhkqsh.supabase.co wss://mkqdchybsjccxlnhkqsh.supabase.co https://*.r2.cloudflarestorage.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://mkqdchybsjccxlnhkqsh.supabase.co https://*.r2.cloudflarestorage.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>用網頁一起拍 — SharedRoll</title>
 <link rel="stylesheet" href="./src/styles.css">

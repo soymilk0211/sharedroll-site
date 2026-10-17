@@ -28,6 +28,22 @@ export interface Shot {
 export interface ShotStore {
   put(shot: Shot): Promise<void>;
   list(userId: string, roomId: string): Promise<Shot[]>;
+  /**
+   * 清掉不該再留在這台裝置上的列:別的帳號留下的(那個 session 已經不在,永遠送不出去),以及
+   * 已經送完或被拒、拍攝超過 `KEEP_DONE_MS` 的紀錄。還沒送出的照片(目前這個人的)不動。
+   * 回傳刪掉幾列。
+   */
+  purge(currentUserId: string, now: number): Promise<number>;
+}
+
+/** 送完或被拒的那一列(已經沒有位元組)留多久:7 天,與補收期一致。 */
+export const KEEP_DONE_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function shouldPurge(shot: Shot, currentUserId: string, now: number): boolean {
+  if (shot.userId !== currentUserId) return true;
+  if (shot.state === 'waiting') return false;
+  const taken = Date.parse(shot.takenAt);
+  return Number.isNaN(taken) || now - taken > KEEP_DONE_MS;
 }
 
 const DB_NAME = 'sharedroll-web';
@@ -57,6 +73,19 @@ export async function openShotStore(factory: IDBFactory = indexedDB): Promise<Sh
         tx.onerror = () => reject(tx.error);
         tx.onabort = () => reject(tx.error);
       });
+    },
+    async purge(currentUserId, now) {
+      const tx = db.transaction(STORE, 'readwrite');
+      const store = tx.objectStore(STORE);
+      const all = (await request(store.getAll())) as Shot[];
+      const doomed = all.filter((shot) => shouldPurge(shot, currentUserId, now));
+      for (const shot of doomed) store.delete(shot.clientKey);
+      await new Promise<void>((resolve, reject) => {
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
+      return doomed.length;
     },
     async list(userId, roomId) {
       const tx = db.transaction(STORE, 'readonly');

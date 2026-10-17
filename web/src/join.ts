@@ -35,6 +35,7 @@ export async function joinAsGuest(backend: Backend, request: JoinRequest): Promi
   }
 
   let userId = await backend.currentUserId();
+  const reusingSession = userId !== null;
   if (!userId) {
     const signedIn = await backend.signInAsGuest(request.captchaToken);
     if (signedIn.error || !signedIn.userId) {
@@ -51,10 +52,16 @@ export async function joinAsGuest(backend: Backend, request: JoinRequest): Promi
   });
   if (terms.error) return { ok: false, message: UNREACHABLE_MESSAGE };
 
-  const profile = await backend.rpc('complete_profile_setup', {
-    p_nickname: normalizeNickname(request.nickname),
-  });
-  if (profile.error) return { ok: false, message: UNREACHABLE_MESSAGE };
+  const setNickname = async () =>
+    !(
+      await backend.rpc('complete_profile_setup', {
+        p_nickname: normalizeNickname(request.nickname),
+      })
+    ).error;
+
+  // 新的訪客:先寫名字再加入,同卷的人一看到他就有名字。沿用舊 session 的訪客(可能還在別卷):
+  // 先確定加得進去才改名字,不然被 guest-one-roll 擋下時,原本那一卷裡的名字已經被改掉了。
+  if (!reusingSession && !(await setNickname())) return { ok: false, message: UNREACHABLE_MESSAGE };
 
   const joined = await backend.rpc('join_room', { p_code: request.code });
   if (joined.error) return { ok: false, message: UNREACHABLE_MESSAGE };
@@ -63,6 +70,7 @@ export async function joinAsGuest(backend: Backend, request: JoinRequest): Promi
   if (!row.joined || !row.room_id) {
     return { ok: false, message: describeJoinFailure(row.joined ? null : row.reason) };
   }
+  if (reusingSession && !(await setNickname())) return { ok: false, message: UNREACHABLE_MESSAGE };
   return { ok: true, roomId: row.room_id, userId };
 }
 

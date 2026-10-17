@@ -8,8 +8,9 @@ export const CONFIG = {
   /** 與 App 的 app.json `extra.supabase.publishableKey` 同一把。 */
   supabasePublishableKey: 'sb_publishable_Pe8FGYslT_c9Z3a8QRC_RA_AtjHfKqq',
   /**
-   * Cloudflare Turnstile 的 site key(W8 第 1 步建好之後由總經理交給工程師)。空字串 = 不顯示
-   * 驗證框——後台還沒開 captcha 時本來就不需要;後台開了之後這裡沒填,匿名登入會被 Supabase 拒絕。
+   * Cloudflare Turnstile 的 site key(W8 第 1 步建好之後由總經理交給工程師;公開值,不是 secret)。
+   * **上線的硬性前提**:這裡空著時,就算 `webJoinEnabled` 打開,頁面也照樣顯示「即將開放」
+   * (`main.ts`)。匿名帳號很便宜,沒有 captcha,窮舉房間碼的速度只受每 IP 的限制。
    */
   turnstileSiteKey: '',
   /**

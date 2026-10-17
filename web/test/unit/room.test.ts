@@ -45,6 +45,9 @@ describe('time formatting', () => {
       '10/18(日)13:00 開箱',
     );
   });
+  it('falls back to Taipei for a zone the browser does not know', () => {
+    expect(formatUnlock(new Date('2026-10-18T04:00:00Z'), 'Not/AZone')).toBe('10/18(日)12:00 開箱');
+  });
   it('counts down in days, hours, minutes', () => {
     expect(formatCountdown(new Date('2026-10-19T05:00:00Z'), now)).toBe('還有 2 天 3 小時');
     expect(formatCountdown(new Date('2026-10-17T05:20:00Z'), now)).toBe('還有 3 小時 20 分');
