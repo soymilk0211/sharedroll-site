@@ -43,11 +43,14 @@ export async function readRevealPhotos(
   roomId: string,
 ): Promise<RevealPhoto[] | null> {
   const rows: PhotoRow[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
+  // 讀到空的那一頁才停,不是「比一頁少」就停:正式環境的 max-rows 若比 PAGE_SIZE 小,後者會
+  // 讀完第一頁就靜靜停下,開箱少一截照片而沒有任何錯誤。
+  for (let from = 0; ;) {
     const { data, error } = await backend.readPhotos(roomId, from, from + PAGE_SIZE - 1);
     if (error || !data) return null;
+    if (data.length === 0) break;
     rows.push(...data);
-    if (data.length < PAGE_SIZE) break;
+    from += data.length;
   }
   return rows
     .filter((row) => row.full_object_key !== null)
@@ -91,6 +94,95 @@ export async function signDownloads(
   // 過了效期的一半就重簽:相片頁常被放著開很久,過期的網址看起來不像錯誤,只是圖出不來。
   const ttl = Number.isFinite(expires) ? expires : 3600;
   return { urls, refreshAt: now + (ttl * 1000) / 2 };
+}
+
+/** 簽名失敗之後多久再試(保留上一批還能用的網址)。 */
+const SIGN_RETRY_MS = 30_000;
+
+export interface LoadedPhoto {
+  blob: Blob;
+  url: string;
+}
+
+/**
+ * 開箱頁的照片載入器:簽名、下載、`blob:` 網址的快取。不碰 DOM,所以測得動。
+ *
+ * - 同一張同時被要兩次(預載還沒回來就翻到那一張)只下載一次。
+ * - 同一時間只簽一次;簽失敗保留上一批(多半還沒真的過期),等一會兒再重簽。
+ * - 快取最多留 `limit` 張,撤掉最舊的,但從不撤掉 `keep` 指名的那一張(畫面上正在用的)。
+ */
+export class PhotoLoader {
+  private signed: SignedBatch | null = null;
+  private signing: Promise<SignedBatch | null> | null = null;
+  private readonly cache = new Map<string, LoadedPhoto>();
+  private readonly inflight = new Map<string, Promise<LoadedPhoto | null>>();
+
+  constructor(
+    private readonly backend: Backend,
+    private readonly photoIds: readonly string[],
+    private readonly options: {
+      limit: number;
+      now?: () => number;
+      createUrl?: (blob: Blob) => string;
+      revokeUrl?: (url: string) => void;
+    },
+  ) {}
+
+  private now(): number {
+    return (this.options.now ?? Date.now)();
+  }
+
+  private async ensureSigned(): Promise<SignedBatch | null> {
+    if (this.signed && this.now() < this.signed.refreshAt) return this.signed;
+    this.signing ??= signDownloads(this.backend, this.photoIds, this.now())
+      .then((fresh) => {
+        if (fresh) {
+          this.signed = fresh;
+        } else if (this.signed) {
+          this.signed = { ...this.signed, refreshAt: this.now() + SIGN_RETRY_MS };
+        }
+        return this.signed;
+      })
+      .finally(() => {
+        this.signing = null;
+      });
+    return this.signing;
+  }
+
+  cached(photoId: string): LoadedPhoto | undefined {
+    return this.cache.get(photoId);
+  }
+
+  load(photoId: string, keep: string): Promise<LoadedPhoto | null> {
+    const hit = this.cache.get(photoId);
+    if (hit) return Promise.resolve(hit);
+    const pending = this.inflight.get(photoId);
+    if (pending) return pending;
+    const task = (async () => {
+      const batch = await this.ensureSigned();
+      const urls = batch?.urls.get(photoId);
+      if (!urls) return null;
+      const { blob } = await this.backend.fetchBlob(urls.full.url);
+      if (!blob) return null;
+      const entry = { blob, url: (this.options.createUrl ?? URL.createObjectURL)(blob) };
+      this.cache.set(photoId, entry);
+      this.evict(keep);
+      return entry;
+    })().finally(() => {
+      this.inflight.delete(photoId);
+    });
+    this.inflight.set(photoId, task);
+    return task;
+  }
+
+  private evict(keep: string): void {
+    for (const [id, entry] of this.cache) {
+      if (this.cache.size <= this.options.limit) break;
+      if (id === keep) continue;
+      (this.options.revokeUrl ?? URL.revokeObjectURL)(entry.url);
+      this.cache.delete(id);
+    }
+  }
 }
 
 /** 網頁版看得到的最後一刻:開箱後 7 天。 */

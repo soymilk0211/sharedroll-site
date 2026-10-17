@@ -8,13 +8,12 @@
 import type { Backend, RoomRow } from './backend';
 import { UNREACHABLE_MESSAGE } from './failures';
 import {
+  PhotoLoader,
   describeCount,
   describeKeepLeft,
   downloadName,
   readRevealPhotos,
-  signDownloads,
   type RevealPhoto,
-  type SignedBatch,
 } from './reveal';
 import { formatExpiry, groupCode, issueTransferCode } from './transfer';
 
@@ -34,6 +33,14 @@ export interface RevealScreenOptions {
   now?: () => Date;
 }
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** iPhone/iPad:用分享選單(裡面有「儲存影像」存進相簿);其他平台直接下載成檔案。 */
+function prefersShareSheet(): boolean {
+  const ua = navigator.userAgent;
+  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+}
+
 export async function revealScreen(options: RevealScreenOptions): Promise<void> {
   const { backend, room, show } = options;
   const now = options.now ?? (() => new Date());
@@ -41,78 +48,72 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
   // 記下「開過箱」(冪等)。失敗不影響看照片:那一筆只是紀錄。
   void backend.rpc('open_roll', { p_room_id: room.id }).catch(() => undefined);
 
-  const unlockAt = room.unlock_at ? new Date(room.unlock_at) : now();
-  const keepLeft = describeKeepLeft(unlockAt, now());
-  $('keep-text').textContent = keepLeft
-    ? `照片只在這個瀏覽器保留 7 天(${keepLeft})。`
-    : '網頁版的 7 天保存期已經過了。';
-  $('reveal-room').textContent = room.name?.trim() || '這一卷';
-  $('to-transfer').addEventListener('click', () => void transferScreen(backend, show));
-
+  const unlockAt = room.unlock_at ? new Date(room.unlock_at) : null;
   const img = $('photo') as HTMLImageElement;
   const status = $('photo-status');
   const prev = $('prev') as HTMLButtonElement;
   const next = $('next') as HTMLButtonElement;
   const download = $('download') as HTMLButtonElement;
   const count = $('reveal-count');
-
-  if (!keepLeft) {
-    status.textContent = '想留住這一卷,請下載 App,用上面的［下載 App］拿轉移碼帶過去。';
+  const lockViewer = (message: string) => {
+    img.removeAttribute('src');
+    status.textContent = message;
     prev.hidden = next.hidden = download.hidden = true;
+  };
+
+  /** 頂部那一行。回傳還看不看得到(過了 7 天就鎖住翻頁與下載)。 */
+  const renderKeep = (): boolean => {
+    if (!unlockAt) {
+      $('keep-text').textContent = '照片只在這個瀏覽器保留 7 天。';
+      return true;
+    }
+    const left = describeKeepLeft(unlockAt, now());
+    $('keep-text').textContent = left
+      ? `照片只在這個瀏覽器保留 7 天(${left})。`
+      : '網頁版的 7 天保存期已經過了。';
+    return left !== null;
+  };
+  const EXPIRED = '想留住這一卷,請下載 App,用上面的［下載 App］拿轉移碼帶過去。';
+  $('reveal-room').textContent = room.name?.trim() || '這一卷';
+  $('to-transfer').addEventListener('click', () => void transferScreen(backend, show));
+
+  if (!renderKeep()) {
+    lockViewer(EXPIRED);
     return;
   }
+  // 頁面開著跨過 7 天也要跟著鎖。
+  const keepTimer = setInterval(() => {
+    if (!renderKeep()) {
+      clearInterval(keepTimer);
+      lockViewer(EXPIRED);
+    }
+  }, 60_000);
 
   let photos: RevealPhoto[] | null = null;
-  for (let attempt = 0; attempt < 3 && photos === null; attempt += 1) {
+  for (const delay of [0, 500, 1500]) {
+    if (delay) await wait(delay);
     photos = await readRevealPhotos(backend, room.id);
+    if (photos) break;
   }
   if (photos === null) {
-    status.textContent = UNREACHABLE_MESSAGE;
-    prev.hidden = next.hidden = download.hidden = true;
+    lockViewer(UNREACHABLE_MESSAGE);
     return;
   }
   const list = photos;
   if (list.length === 0) {
     count.textContent = '這一卷沒有照片';
-    status.textContent = '這一卷開箱時一張照片都沒有。';
-    prev.hidden = next.hidden = download.hidden = true;
+    lockViewer('這一卷開箱時一張照片都沒有。');
     return;
   }
 
-  let signed: SignedBatch | null = null;
-  const cache = new Map<string, { blob: Blob; url: string }>();
+  const loader = new PhotoLoader(
+    backend,
+    list.map((photo) => photo.id),
+    { limit: CACHE_LIMIT },
+  );
   let index = 0;
   let showing = 0;
-
-  const ensureSigned = async (): Promise<SignedBatch | null> => {
-    if (signed && Date.now() < signed.refreshAt) return signed;
-    signed = await signDownloads(
-      backend,
-      list.map((photo) => photo.id),
-      Date.now(),
-    );
-    return signed;
-  };
-
-  const load = async (photo: RevealPhoto): Promise<{ blob: Blob; url: string } | null> => {
-    const hit = cache.get(photo.id);
-    if (hit) return hit;
-    const batch = await ensureSigned();
-    const urls = batch?.urls.get(photo.id);
-    if (!urls) return null;
-    const { blob } = await backend.fetchBlob(urls.full.url);
-    if (!blob) return null;
-    const entry = { blob, url: URL.createObjectURL(blob) };
-    cache.set(photo.id, entry);
-    // 最舊的先放掉,但不放掉畫面上正在用的那一張。
-    for (const [id, old] of cache) {
-      if (cache.size <= CACHE_LIMIT) break;
-      if (id === list[index]?.id) continue;
-      URL.revokeObjectURL(old.url);
-      cache.delete(id);
-    }
-    return entry;
-  };
+  let failed = false;
 
   const render = async () => {
     const ticket = ++showing;
@@ -121,17 +122,15 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
     prev.disabled = index === 0;
     next.disabled = index === list.length - 1;
     download.disabled = true;
+    failed = false;
     status.textContent = '載入中…';
     img.removeAttribute('src');
-    let entry: { blob: Blob; url: string } | null = null;
-    try {
-      entry = await load(photo);
-    } catch {
-      entry = null;
-    }
+    const entry = await loader.load(photo.id, photo.id).catch(() => null);
+    // 翻頁比下載快:晚回來的舊照片不蓋掉現在這一張。
     if (ticket !== showing) return;
     if (!entry) {
-      status.textContent = '這一張現在載不到,稍後再試一次';
+      failed = true;
+      status.textContent = '這一張現在載不到,點一下這裡再試一次';
       return;
     }
     img.src = entry.url;
@@ -139,7 +138,7 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
     download.disabled = false;
     // 預先載下一張,翻頁不必等。
     const following = list[index + 1];
-    if (following) void load(following).catch(() => undefined);
+    if (following) void loader.load(following.id, photo.id).catch(() => undefined);
   };
 
   prev.addEventListener('click', () => {
@@ -153,6 +152,9 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
       index += 1;
       void render();
     }
+  });
+  $('photo-frame').addEventListener('click', () => {
+    if (failed) void render();
   });
   document.addEventListener('keydown', (event) => {
     if ($('screen-reveal').hidden) return;
@@ -173,12 +175,11 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
   });
 
   download.addEventListener('click', async () => {
-    const entry = cache.get(list[index].id);
+    const entry = loader.cached(list[index].id);
     if (!entry) return;
     const name = downloadName(room.name ?? '', index);
-    const file = new File([entry.blob], name, { type: 'image/jpeg' });
-    // iPhone:分享選單裡有「儲存影像」,存進相簿;其他瀏覽器直接下載成檔案。
-    if (navigator.canShare?.({ files: [file] })) {
+    const file = new File([entry.blob], name, { type: entry.blob.type || 'image/jpeg' });
+    if (prefersShareSheet() && navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file] });
         return;
@@ -199,41 +200,54 @@ export async function revealScreen(options: RevealScreenOptions): Promise<void> 
 }
 
 let transferWired = false;
+let transferBackend: Backend | null = null;
+let transferShow: ((screen: 'reveal' | 'transfer') => void) | null = null;
+let issueSeq = 0;
+
+async function issue(): Promise<void> {
+  const backend = transferBackend;
+  if (!backend) return;
+  const ticket = ++issueSeq;
+  const codeBox = $('transfer-code');
+  const expiry = $('transfer-expiry');
+  const error = $('transfer-error');
+  const again = $('transfer-again') as HTMLButtonElement;
+  again.disabled = true;
+  error.hidden = true;
+  codeBox.textContent = '…';
+  expiry.textContent = '';
+  const outcome = await issueTransferCode(backend).catch(() => null);
+  // 伺服器每發一組新的就作廢舊的:晚回來的那一次(或已經離開這一頁)不寫進畫面。
+  if (ticket !== issueSeq) return;
+  again.disabled = false;
+  if (!outcome || !outcome.ok) {
+    codeBox.textContent = '';
+    error.textContent = outcome && !outcome.ok ? outcome.message : UNREACHABLE_MESSAGE;
+    error.hidden = false;
+    return;
+  }
+  codeBox.textContent = groupCode(outcome.code);
+  expiry.textContent = `${formatExpiry(outcome.expiresAt)}(15 分鐘,只能用一次)`;
+}
 
 /** 轉移碼頁:每次進來都向伺服器拿一組新的(舊的那組伺服器會作廢)。 */
 export async function transferScreen(
   backend: Backend,
   show: (screen: 'reveal' | 'transfer') => void,
 ): Promise<void> {
+  transferBackend = backend;
+  transferShow = show;
   show('transfer');
-  const codeBox = $('transfer-code');
-  const expiry = $('transfer-expiry');
-  const error = $('transfer-error');
-  const again = $('transfer-again') as HTMLButtonElement;
-  const issue = async () => {
-    again.disabled = true;
-    error.hidden = true;
-    codeBox.textContent = '…';
-    expiry.textContent = '';
-    const outcome = await issueTransferCode(backend).catch(() => null);
-    again.disabled = false;
-    if (!outcome || !outcome.ok) {
-      codeBox.textContent = '';
-      error.textContent = outcome && !outcome.ok ? outcome.message : UNREACHABLE_MESSAGE;
-      error.hidden = false;
-      return;
-    }
-    codeBox.textContent = groupCode(outcome.code);
-    expiry.textContent = `${formatExpiry(outcome.expiresAt)}(15 分鐘,只能用一次)`;
-  };
   if (!transferWired) {
     transferWired = true;
-    again.addEventListener('click', () => void issue());
+    $('transfer-again').addEventListener('click', () => void issue());
     $('transfer-back').addEventListener('click', () => {
-      // 離開這一頁就把碼從畫面上拿掉,不留在 DOM 裡。
-      codeBox.textContent = '';
-      expiry.textContent = '';
-      show('reveal');
+      // 離開這一頁:作廢還在路上的那一次,並把碼從畫面上拿掉,不留在 DOM 裡。
+      issueSeq += 1;
+      $('transfer-code').textContent = '';
+      $('transfer-expiry').textContent = '';
+      ($('transfer-again') as HTMLButtonElement).disabled = false;
+      transferShow?.('reveal');
     });
   }
   await issue();

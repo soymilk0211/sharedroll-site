@@ -253,6 +253,7 @@ async function cameraScreen(
         stopPreview?.();
         stopPreview = null;
         (video.srcObject as MediaStream | null)?.getTracks().forEach((track) => track.stop());
+        video.srcObject = null;
         cameraReady = false;
         onRevealed(room.data);
       }
@@ -300,9 +301,19 @@ async function cameraScreen(
 
   await refresh();
 
+  const releaseCamera = () => {
+    (video.srcObject as MediaStream | null)?.getTracks().forEach((track) => track.stop());
+    video.srcObject = null;
+    cameraReady = false;
+  };
   const startCamera = async (open: () => Promise<unknown>) => {
     try {
       await open();
+      // 等相機的那段時間裡開箱了:這一路拿到的串流不要留著(相機燈會一直亮)。
+      if (revealedHandled) {
+        releaseCamera();
+        return;
+      }
       cameraReady = true;
       showCameraError(null);
     } catch (error) {
@@ -376,6 +387,25 @@ async function cameraScreen(
   void drain();
 }
 
+/**
+ * 開箱之後才打開頁面時:還在佇列裡、扣到配額的照片照樣在背景送完(開箱後 7 天內伺服器還收)。
+ * 這台瀏覽器開不了 IndexedDB 就算了——那代表這裡本來就沒有存著的照片。
+ */
+async function drainInBackground(backend: Backend, roomId: string, userId: string): Promise<void> {
+  let store: ShotStore;
+  try {
+    store = await openShotStore();
+    await store.purge(userId, Date.now());
+  } catch {
+    return;
+  }
+  const uploader = createUploader(backend, store);
+  const drain = () => void uploader.drain(userId, roomId).catch(() => undefined);
+  window.addEventListener('online', drain);
+  setInterval(drain, 15_000);
+  drain();
+}
+
 async function main(): Promise<void> {
   const code = parseRoomCode(new URLSearchParams(location.search).get('code'));
   fillStaticLinks(code);
@@ -408,6 +438,14 @@ async function main(): Promise<void> {
     void revealScreen({ backend, room, show }).catch(() =>
       showMessage('出了點問題', UNREACHABLE_MESSAGE),
     );
+  // 已經開箱(開箱後才打開連結):直接進開箱頁。看照片不需要 WebGL2 也不需要 IndexedDB,
+  // 不要讓那兩關(私密瀏覽、舊瀏覽器)擋住他看照片,也不要先閃一下相機頁。
+  const room = await backend.readRoom(member.roomId).catch(() => null);
+  if (room?.data && isRevealed(room.data, new Date())) {
+    void drainInBackground(backend, member.roomId, member.userId);
+    toReveal(room.data);
+    return;
+  }
   await cameraScreen(backend, member.roomId, member.userId, toReveal);
 }
 
