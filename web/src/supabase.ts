@@ -2,7 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-import type { Backend, ParticipantRow, RoomRow } from './backend';
+import type { Backend, ParticipantRow, PhotoRow, RoomRow } from './backend';
 import { CONFIG } from './config';
 
 export function createSupabaseBackend(): Backend {
@@ -58,6 +58,21 @@ export function createSupabaseBackend(): Backend {
         .eq('user_id', userId)
         .maybeSingle<ParticipantRow>();
       return { data, error };
+    },
+    async readPhotos(roomId, from, to) {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('id, taken_at, orientation, full_object_key')
+        .eq('room_id', roomId)
+        .order('arrival_seq', { ascending: true })
+        .range(from, to);
+      return { data: data as PhotoRow[] | null, error };
+    },
+    async fetchBlob(url) {
+      // credentials: 'omit':presigned 網址自己帶著授權,不送任何 cookie;referrer 由頁面的
+      // no-referrer 擋著,不會把房間碼帶到 R2 的記錄裡。
+      const response = await fetch(url, { credentials: 'omit', cache: 'no-store' });
+      return { blob: response.ok ? await response.blob() : null, status: response.status };
     },
     async put(url, body, contentType) {
       // Content-Length 由瀏覽器從 Blob 算,與簽章裡綁的那個數字是同一個來源(App #46 同一個立場)。

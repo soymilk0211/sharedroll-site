@@ -14,8 +14,8 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://mkqdchybsjccxlnhkqsh.supabase.co https://*.r2.cloudflarestorage.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>用網頁一起拍 — SharedRoll</title>
-  <script type="module" crossorigin src="/sharedroll-site/camera/assets/index-B29N344B.js"></script>
-  <link rel="stylesheet" crossorigin href="/sharedroll-site/camera/assets/index-2LoKwYR1.css">
+  <script type="module" crossorigin src="/sharedroll-site/camera/assets/index-DHyzohhm.js"></script>
+  <link rel="stylesheet" crossorigin href="/sharedroll-site/camera/assets/index-KPkAJEIq.css">
 </head>
 <body>
 <main>
@@ -77,6 +77,43 @@
     <p class="hint" id="queue-status" aria-live="polite"></p>
     <ul class="rejected" id="rejected"></ul>
     <p class="hint dim">網頁版請保持連線,拍完會自動送出。照片要等開箱那一刻才看得到。</p>
+  </section>
+
+  <section id="screen-reveal" hidden>
+    <div class="keep-banner" role="note">
+      <p><span id="keep-text">照片只在這個瀏覽器保留 7 天。</span>下載 App 並登入,就能把這卷永久留在底片牆</p>
+      <button class="button small" id="to-transfer" type="button">下載 App</button>
+    </div>
+    <p class="room-name" id="reveal-room"></p>
+    <p class="headline" id="reveal-count"></p>
+    <div class="photo-frame" id="photo-frame">
+      <img id="photo" alt="這一卷的照片">
+      <p class="hint" id="photo-status" aria-live="polite"></p>
+    </div>
+    <div class="pager">
+      <button class="button" id="prev" type="button" aria-label="上一張">‹ 上一張</button>
+      <button class="button" id="next" type="button" aria-label="下一張">下一張 ›</button>
+    </div>
+    <button class="button primary" id="download" type="button">下載這一張</button>
+    <p class="hint dim">開箱只看照片,不顯示是誰拍的。</p>
+  </section>
+
+  <section id="screen-transfer" hidden>
+    <h1>把這一卷帶進 App</h1>
+    <ol class="steps">
+      <li>下載 SharedRoll</li>
+      <li>用 Apple 或 Google 登入</li>
+      <li>在首頁輸入下面這組轉移碼</li>
+    </ol>
+    <p class="label">轉移碼</p>
+    <div class="transfer-code" id="transfer-code" aria-live="polite"></div>
+    <p class="hint" id="transfer-expiry"></p>
+    <p class="error" id="transfer-error" role="alert" hidden></p>
+    <p class="hint dim">轉移碼就像這一卷的鑰匙,拿到的人可以把你的照片帶走。只輸入在自己的手機上,不要傳給別人。</p>
+    <a class="button primary" data-app-store>到 App Store 免費下載</a>
+    <a class="button" data-play-store>Android?到 Google Play 免費下載</a>
+    <button class="button link" id="transfer-again" type="button">碼過期了?重新拿一組</button>
+    <button class="button link" id="transfer-back" type="button">回到照片</button>
   </section>
 
   <section id="screen-message" hidden>
