@@ -32,7 +32,8 @@ node web/scripts/check-pages-output.mjs
 | 環境變數 | `NODE_VERSION` = `22`(`.nvmrc` 也是 22,寫明比較保險)。**沒有任何 secret** |
 | Preview deployments | **None**(Settings → Builds → Branch control) |
 
-`wrangler.toml` 只寫 `name`、`pages_build_output_dir`、`compatibility_date`,沒有 secret、也沒有環境變數。
+刻意**不放 `wrangler.toml`**:Pages 連 GitHub 建置時,repo 裡有那份檔案就會以它為準,後台的設定(含環境變數)
+會變成唯讀、兩邊容易對不上。設定全部在後台,以這張表為準;Node 版本另有 `.nvmrc`(22)。
 
 - **合併 main = 兩個網站同時上線**(GitHub Pages 與 Cloudflare Pages),所以 main 分支保護＋CI 必過
   (W8 第 3c 步)更重要。

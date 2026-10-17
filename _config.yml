@@ -9,5 +9,4 @@ exclude:
   - package-lock.json
   - tsconfig.json
   - vite.config.ts
-  - wrangler.toml
   - README.md
