@@ -2,7 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-import type { Backend, ParticipantRow, RoomRow } from './backend';
+import type { Backend, ParticipantRow, PhotoRow, RoomRow } from './backend';
 import { CONFIG } from './config';
 
 export function createSupabaseBackend(): Backend {
@@ -58,6 +58,30 @@ export function createSupabaseBackend(): Backend {
         .eq('user_id', userId)
         .maybeSingle<ParticipantRow>();
       return { data, error };
+    },
+    async readPhotos(roomId, from, to) {
+      const { data, error } = await supabase
+        .from('photos')
+        .select('id, taken_at, orientation, full_object_key')
+        .eq('room_id', roomId)
+        .order('arrival_seq', { ascending: true })
+        .range(from, to);
+      return { data: data as PhotoRow[] | null, error };
+    },
+    async fetchBlob(url) {
+      // credentials: 'omit':presigned 網址自己帶著授權,不送任何 cookie;referrer 由頁面的
+      // no-referrer 擋著,不會把房間碼帶到 R2 的記錄裡。
+      // 只抓 R2 的 https 網址:Edge Function 出錯時也不會被帶去抓別的地方。
+      const target = new URL(url);
+      if (target.protocol !== 'https:' || !target.hostname.endsWith('.r2.cloudflarestorage.com')) {
+        return { blob: null, status: 0 };
+      }
+      const response = await fetch(target, {
+        credentials: 'omit',
+        cache: 'no-store',
+        redirect: 'error',
+      });
+      return { blob: response.ok ? await response.blob() : null, status: response.status };
     },
     async put(url, body, contentType) {
       // Content-Length 由瀏覽器從 Blob 算,與簽章裡綁的那個數字是同一個來源(App #46 同一個立場)。

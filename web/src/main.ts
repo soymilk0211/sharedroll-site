@@ -4,7 +4,7 @@
  * 只用 textContent 寫字,不用 innerHTML:房名與錯誤訊息都可能是別人打的字。
  */
 
-import type { Backend } from './backend';
+import type { Backend, RoomRow } from './backend';
 import {
   classifyCameraError,
   describeCameraProblem,
@@ -21,12 +21,22 @@ import { createFilmRenderer, type FilmRenderer } from './film/webgl';
 import { detectInAppBrowser, externalBrowserUrl } from './in-app-browser';
 import { joinAsGuest, resumeIfJoined } from './join';
 import { openShotStore, pendingCount, unclaimedCount, type Shot, type ShotStore } from './queue';
-import { describeRoom, type RoomView } from './room';
+import { describeRoom, isRevealed, type RoomView } from './room';
+import { revealScreen } from './reveal-screen';
 import { createSupabaseBackend } from './supabase';
 import { mountTurnstile, type Captcha } from './turnstile';
 import { createUploader } from './upload';
 
-const SCREENS = ['closed', 'bad-link', 'in-app', 'join', 'camera', 'message'] as const;
+const SCREENS = [
+  'closed',
+  'bad-link',
+  'in-app',
+  'join',
+  'camera',
+  'reveal',
+  'transfer',
+  'message',
+] as const;
 type Screen = (typeof SCREENS)[number];
 
 function $(id: string): HTMLElement {
@@ -159,7 +169,12 @@ async function joinScreen(
 }
 
 /** 相機頁:取景、快門、送件、狀態。 */
-async function cameraScreen(backend: Backend, roomId: string, userId: string): Promise<void> {
+async function cameraScreen(
+  backend: Backend,
+  roomId: string,
+  userId: string,
+  onRevealed: (room: RoomRow) => void,
+): Promise<void> {
   show('camera');
   const preview = $('preview') as HTMLCanvasElement;
   const video = $('video') as HTMLVideoElement;
@@ -195,6 +210,7 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
   let cameraReady = false;
   let stopPreview: (() => void) | null = null;
   let refreshSeq = 0;
+  let revealedHandled = false;
 
   const renderStatus = () => {
     if (view) {
@@ -229,6 +245,17 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
       shots = local;
       if (room.data && me.data) {
         view = describeRoom(room.data, me.data, unclaimedCount(shots), new Date());
+      }
+      if (room.data && me.data && !revealedHandled && isRevealed(room.data, new Date())) {
+        // 開箱時刻到了:收起相機,換成開箱頁。佇列裡已經扣到配額的照片照樣在背景送完
+        // (開箱後 7 天內伺服器還收)。
+        revealedHandled = true;
+        stopPreview?.();
+        stopPreview = null;
+        (video.srcObject as MediaStream | null)?.getTracks().forEach((track) => track.stop());
+        video.srcObject = null;
+        cameraReady = false;
+        onRevealed(room.data);
       }
     } catch {
       // 連不上就維持上一次的畫面;下一輪再讀。
@@ -274,9 +301,19 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
 
   await refresh();
 
+  const releaseCamera = () => {
+    (video.srcObject as MediaStream | null)?.getTracks().forEach((track) => track.stop());
+    video.srcObject = null;
+    cameraReady = false;
+  };
   const startCamera = async (open: () => Promise<unknown>) => {
     try {
       await open();
+      // 等相機的那段時間裡開箱了:這一路拿到的串流不要留著(相機燈會一直亮)。
+      if (revealedHandled) {
+        releaseCamera();
+        return;
+      }
       cameraReady = true;
       showCameraError(null);
     } catch (error) {
@@ -292,8 +329,12 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
     }
     renderStatus();
   };
-  await startCamera(() => openCamera(video));
-  if (cameraReady) beginPreview();
+  // 已經開箱(例如開箱後才打開連結)就不開相機,但下面的送件計時器照樣掛上:扣到配額、
+  // 還沒送完的照片在開箱後 7 天內仍然收得進去。
+  if (!revealedHandled) {
+    await startCamera(() => openCamera(video));
+    if (cameraReady && !revealedHandled) beginPreview();
+  }
 
   shutter.addEventListener('click', async () => {
     if (busy || !cameraReady || !renderer || !view?.canShoot) return;
@@ -330,6 +371,10 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
   window.addEventListener('online', () => void drain());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible') return;
+    if (revealedHandled) {
+      void drain();
+      return;
+    }
     // 回到前景:相機可能被系統停了,先接回來再讓快門亮。
     cameraReady = false;
     renderStatus();
@@ -340,6 +385,25 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
   });
   setInterval(() => void drain(), 15_000);
   void drain();
+}
+
+/**
+ * 開箱之後才打開頁面時:還在佇列裡、扣到配額的照片照樣在背景送完(開箱後 7 天內伺服器還收)。
+ * 這台瀏覽器開不了 IndexedDB 就算了——那代表這裡本來就沒有存著的照片。
+ */
+async function drainInBackground(backend: Backend, roomId: string, userId: string): Promise<void> {
+  let store: ShotStore;
+  try {
+    store = await openShotStore();
+    await store.purge(userId, Date.now());
+  } catch {
+    return;
+  }
+  const uploader = createUploader(backend, store);
+  const drain = () => void uploader.drain(userId, roomId).catch(() => undefined);
+  window.addEventListener('online', drain);
+  setInterval(drain, 15_000);
+  drain();
 }
 
 async function main(): Promise<void> {
@@ -370,7 +434,19 @@ async function main(): Promise<void> {
     return;
   }
   const member = resumed?.ok ? resumed : await joinScreen(backend, code);
-  await cameraScreen(backend, member.roomId, member.userId);
+  const toReveal = (room: RoomRow) =>
+    void revealScreen({ backend, room, show }).catch(() =>
+      showMessage('出了點問題', UNREACHABLE_MESSAGE),
+    );
+  // 已經開箱(開箱後才打開連結):直接進開箱頁。看照片不需要 WebGL2 也不需要 IndexedDB,
+  // 不要讓那兩關(私密瀏覽、舊瀏覽器)擋住他看照片,也不要先閃一下相機頁。
+  const room = await backend.readRoom(member.roomId).catch(() => null);
+  if (room?.data && isRevealed(room.data, new Date())) {
+    void drainInBackground(backend, member.roomId, member.userId);
+    toReveal(room.data);
+    return;
+  }
+  await cameraScreen(backend, member.roomId, member.userId, toReveal);
 }
 
 main().catch(() => showMessage('出了點問題', UNREACHABLE_MESSAGE));

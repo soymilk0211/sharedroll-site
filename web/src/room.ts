@@ -60,6 +60,13 @@ export function formatCountdown(unlockAt: Date, now: Date): string {
   return `還有 ${minutes} 分`;
 }
 
+/** 這一卷開箱了沒:看時間不看 state(結算排程晚幾秒跑,畫面不該跟著晚)。 */
+export function isRevealed(room: RoomRow, now: Date): boolean {
+  if (room.state === 'abandoned') return false;
+  if (room.state === 'revealed') return true;
+  return room.unlock_at !== null && new Date(room.unlock_at) <= now;
+}
+
 export function describeRoom(
   room: RoomRow,
   me: ParticipantRow,
@@ -85,7 +92,7 @@ export function describeRoom(
   if (room.state === 'joining') {
     return { ...base, canShoot: false, remaining: null, headline: '等房主按「開始拍」' };
   }
-  const revealed = room.state === 'revealed' || (unlockAt !== null && unlockAt <= now);
+  const revealed = isRevealed(room, now);
   if (revealed) {
     return { ...base, canShoot: false, remaining: null, headline: '這一卷已經開箱了' };
   }
