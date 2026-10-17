@@ -1,0 +1,37 @@
+# 網頁相機(camera/)的檢查。camera/ 是 web/ 建出來、commit 進來的產物(GitHub Pages 直接發佈
+# main 分支的根目錄),所以這裡多一步:重建一次,跟 commit 進來的那一份逐位元組比對。
+name: camera
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: camera/ 跟 web/ 的原始碼一致
+        run: |
+          npm run build
+          git status --porcelain camera/
+          if [ -n "$(git status --porcelain camera/)" ]; then
+            echo "::error::camera/ 不是 web/ 建出來的那一份。在本機跑 npm run build,把 camera/ 一起 commit。"
+            exit 1
+          fi
+      - name: 濾鏡 golden(WebGL2 對 App 的 CanvasKit,ΔE 平均 < 2)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: npm run golden
