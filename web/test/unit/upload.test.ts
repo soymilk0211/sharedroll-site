@@ -77,7 +77,7 @@ describe('sendShot', () => {
       invoke: signed,
       put: () => ({ ok: false, status: 403 }),
     });
-    const next = await sendShot(backend, shot(), 1_000);
+    const next = await sendShot(backend, shot(), 1_000, { random: () => 1 });
     expect(next.state).toBe('waiting');
     expect(next.photoId).toBe('photo-1');
     expect(next.attempts).toBe(1);
@@ -95,9 +95,12 @@ describe('sendShot', () => {
 
   it('backs off exponentially up to a minute', async () => {
     const { backend } = fakeBackend({});
-    const next = await sendShot(backend, shot({ attempts: 10 }), 0);
+    const next = await sendShot(backend, shot({ attempts: 10 }), 0, { random: () => 1 });
     expect(next.state).toBe('waiting');
     expect(next.nextAttemptAt).toBe(60_000);
+    // 抖動:最少是一半。
+    const early = await sendShot(backend, shot({ attempts: 10 }), 0, { random: () => 0 });
+    expect(early.nextAttemptAt).toBe(30_000);
   });
 
   it('rejects permanently when the server says the quota is gone', async () => {
@@ -112,6 +115,9 @@ describe('sendShot', () => {
     const next = await sendShot(backend, shot(), 0);
     expect(next.state).toBe('rejected');
     expect(next.reason).toBe('quota-exhausted');
+    // 不會再送了:位元組不留在 IndexedDB 佔空間。
+    expect(next.full).toBeNull();
+    expect(next.thumbnail).toBeNull();
   });
 
   it('rejects a row whose bytes are missing instead of claiming quota for nothing', async () => {
@@ -138,20 +144,75 @@ describe('queue and uploader', () => {
     expect(blob.size).toBe(1234);
   });
 
-  it('runs one drain at a time and stops at the first unreachable error', async () => {
+  it('stops the round at the first transient error instead of hitting every shot', async () => {
     const store = await openShotStore(new IDBFactory());
     await store.put(shot({ clientKey: 'a', takenAt: '2026-10-17T02:00:01Z' }));
     await store.put(shot({ clientKey: 'b', takenAt: '2026-10-17T02:00:02Z' }));
     const { backend, calls } = fakeBackend({
       rpc: { claim_quota_photo: () => ({ data: null, error: new Error('offline') }) },
     });
-    const uploader = createUploader(backend, store);
-    const first = uploader.drain('guest-1', 'room-1', () => 0);
-    const second = uploader.drain('guest-1', 'room-1', () => 0);
-    expect(second).toBe(first);
-    const shots = await first;
+    const shots = await createUploader(backend, store).drain('guest-1', 'room-1', () => 0);
     expect(calls.filter((c) => c.name === 'claim_quota_photo')).toHaveLength(1);
     expect(shots.every((s) => s.state === 'waiting')).toBe(true);
+  });
+
+  it('never runs two rounds at once, and picks up a shot taken mid-round', async () => {
+    const store = await openShotStore(new IDBFactory());
+    await store.put(shot({ clientKey: 'a', takenAt: '2026-10-17T02:00:01Z' }));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let next = 0;
+    const { backend, calls } = fakeBackend({
+      rpc: {
+        claim_quota_photo: async () => {
+          inFlight += 1;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          if (next === 0) await gate;
+          inFlight -= 1;
+          next += 1;
+          return {
+            data: [{ granted: true, reason: null, photo_id: `photo-${next}` }],
+            error: null,
+          };
+        },
+        finalize_photo_upload: finalized,
+      },
+      invoke: signed,
+    });
+    const uploader = createUploader(backend, store);
+    const first = uploader.drain('guest-1', 'room-1', () => 0);
+    await new Promise((r) => setTimeout(r, 10));
+    // 第一張還卡在 claim,這時拍了第二張、又叫了一次 drain。
+    await store.put(shot({ clientKey: 'b', takenAt: '2026-10-17T02:00:02Z' }));
+    const second = uploader.drain('guest-1', 'room-1', () => 0);
+    expect(second).toBe(first);
+    release();
+    const shots = await first;
+    expect(maxInFlight).toBe(1);
+    expect(calls.filter((c) => c.name === 'claim_quota_photo')).toHaveLength(2);
+    expect(shots.map((s) => s.state)).toEqual(['uploaded', 'uploaded']);
+    expect(new Set(shots.map((s) => s.photoId)).size).toBe(2);
+  });
+
+  it('writes the photo id back as soon as the claim succeeds, before uploading', async () => {
+    const store = await openShotStore(new IDBFactory());
+    await store.put(shot({ clientKey: 'a' }));
+    let seenDuringUpload: Shot | undefined;
+    const { backend } = fakeBackend({
+      rpc: { claim_quota_photo: granted, finalize_photo_upload: finalized },
+      invoke: signed,
+      put: () => ({ ok: false, status: 500 }),
+    });
+    const originalInvoke = backend.invoke;
+    backend.invoke = async (name, body) => {
+      seenDuringUpload = (await store.list('guest-1', 'room-1'))[0];
+      return originalInvoke(name, body);
+    };
+    await createUploader(backend, store).drain('guest-1', 'room-1', () => 0);
+    expect(seenDuringUpload?.photoId).toBe('photo-1');
+    expect(seenDuringUpload?.state).toBe('waiting');
   });
 
   it('skips shots still in back-off and uploads the rest', async () => {

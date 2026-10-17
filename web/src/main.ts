@@ -9,12 +9,13 @@ import {
   classifyCameraError,
   describeCameraProblem,
   openCamera,
+  resumeCamera,
   burnFrame,
   startPreview,
 } from './camera';
 import { parseRoomCode } from './codes';
 import { CONFIG } from './config';
-import { photoFailure } from './failures';
+import { photoFailure, UNREACHABLE_MESSAGE } from './failures';
 import type { FilmFilterKey } from './film/recipes';
 import { createFilmRenderer, type FilmRenderer } from './film/webgl';
 import { detectInAppBrowser, externalBrowserUrl } from './in-app-browser';
@@ -91,39 +92,68 @@ async function showInAppWarning(kind: ReturnType<typeof detectInAppBrowser>): Pr
   );
 }
 
+/** Turnstile 腳本最多等這麼久;載不下來就讓他照樣按,Supabase 那一側會拒絕。 */
+const TURNSTILE_TIMEOUT_MS = 10_000;
+
 async function joinScreen(
   backend: Backend,
   code: string,
 ): Promise<{ roomId: string; userId: string }> {
   show('join');
-  let captcha: Captcha = { token: () => null, reset: () => {} };
-  try {
-    captcha = await mountTurnstile($('turnstile'), CONFIG.turnstileSiteKey);
-  } catch {
-    // 驗證框載不下來:照樣讓他按,Supabase 那一側會拒絕,畫面講得出原因。
-  }
+  let captcha: Captcha | null = null;
+  const captchaWanted = CONFIG.turnstileSiteKey !== '';
+  // 背景載驗證框,表單先能按(不然腳本卡住時「加入」完全沒反應)。
+  void Promise.race([
+    mountTurnstile($('turnstile'), CONFIG.turnstileSiteKey),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('timeout')), TURNSTILE_TIMEOUT_MS),
+    ),
+  ]).then(
+    (mounted) => {
+      captcha = mounted;
+    },
+    () => {
+      captcha = null;
+    },
+  );
   const form = $('join-form') as HTMLFormElement;
   const error = $('join-error');
   const submit = $('join-submit') as HTMLButtonElement;
+  const fail = (message: string) => {
+    error.textContent = message;
+    error.hidden = false;
+  };
   return new Promise((resolve) => {
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      submit.disabled = true;
+      if (submit.disabled) return;
       error.hidden = true;
-      const outcome = await joinAsGuest(backend, {
-        code,
-        nickname: ($('nickname') as HTMLInputElement).value,
-        agreed: ($('agree') as HTMLInputElement).checked,
-        captchaToken: captcha.token(),
-      });
-      submit.disabled = false;
+      const token = (captcha as Captcha | null)?.token() ?? null;
+      if (captchaWanted && captcha && token === null) {
+        fail('請先完成上面的驗證');
+        return;
+      }
+      submit.disabled = true;
+      let outcome: Awaited<ReturnType<typeof joinAsGuest>>;
+      try {
+        outcome = await joinAsGuest(backend, {
+          code,
+          nickname: ($('nickname') as HTMLInputElement).value,
+          agreed: ($('agree') as HTMLInputElement).checked,
+          captchaToken: token,
+        });
+      } catch {
+        outcome = { ok: false, message: UNREACHABLE_MESSAGE };
+      } finally {
+        submit.disabled = false;
+      }
       if (outcome.ok) {
         resolve({ roomId: outcome.roomId, userId: outcome.userId });
         return;
       }
-      captcha.reset();
-      error.textContent = outcome.message;
-      error.hidden = false;
+      // token 只能用一次:不論失敗在哪一步都換一張新的。
+      (captcha as Captcha | null)?.reset();
+      fail(outcome.message);
     });
   });
 }
@@ -135,11 +165,14 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
   const video = $('video') as HTMLVideoElement;
   const shutter = $('shutter') as HTMLButtonElement;
   const cameraError = $('camera-error');
+  const showCameraError = (message: string | null) => {
+    cameraError.textContent = message ?? '';
+    cameraError.hidden = message === null;
+  };
 
-  const renderer: FilmRenderer | null = createFilmRenderer(preview);
+  let renderer: FilmRenderer | null = createFilmRenderer(preview);
   if (!renderer) {
-    cameraError.textContent = '這個瀏覽器不支援 WebGL2,沒辦法套濾鏡。請改用新版的 Safari 或 Chrome';
-    cameraError.hidden = false;
+    showCameraError('這個瀏覽器不支援 WebGL2,沒辦法套濾鏡。請改用新版的 Safari 或 Chrome');
     return;
   }
 
@@ -147,14 +180,16 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
   try {
     store = await openShotStore();
   } catch {
-    cameraError.textContent = '這個瀏覽器不讓網頁存照片(可能是私密瀏覽),請改用一般模式打開';
-    cameraError.hidden = false;
+    showCameraError('這個瀏覽器不讓網頁存照片(可能是私密瀏覽),請改用一般模式打開');
     return;
   }
   const uploader = createUploader(backend, store);
-  let shots: Shot[] = await store.list(userId, roomId);
+  let shots: Shot[] = [];
   let view: RoomView | null = null;
   let busy = false;
+  let cameraReady = false;
+  let stopPreview: (() => void) | null = null;
+  let refreshSeq = 0;
 
   const renderStatus = () => {
     if (view) {
@@ -162,11 +197,10 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
       $('room-headline').textContent = view.headline;
       $('room-unlock').textContent = view.unlockText ?? '';
     }
-    shutter.disabled = busy || !view?.canShoot;
+    shutter.disabled = busy || !cameraReady || !renderer || !view?.canShoot;
     const waiting = pendingCount(shots);
     $('queue-status').textContent = waiting > 0 ? `${waiting} 張等待送出` : '';
-    const rejected = $('rejected');
-    rejected.replaceChildren(
+    $('rejected').replaceChildren(
       ...shots
         .filter((shot) => shot.state === 'rejected')
         .map((shot) => {
@@ -177,42 +211,87 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
     );
   };
 
-  const refreshRoom = async () => {
-    const [room, me] = await Promise.all([
-      backend.readRoom(roomId),
-      backend.readMyParticipant(roomId, userId),
-    ]);
-    if (room.data && me.data) {
-      view = describeRoom(room.data, me.data, unclaimedCount(shots), new Date());
+  /** 重讀本機清單與伺服器的房間狀態。只採用最新的那一次,晚回來的舊結果不覆蓋新的。 */
+  const refresh = async () => {
+    const seq = ++refreshSeq;
+    try {
+      const [local, room, me] = await Promise.all([
+        store.list(userId, roomId),
+        backend.readRoom(roomId),
+        backend.readMyParticipant(roomId, userId),
+      ]);
+      if (seq !== refreshSeq) return;
+      shots = local;
+      if (room.data && me.data) {
+        view = describeRoom(room.data, me.data, unclaimedCount(shots), new Date());
+      }
+    } catch {
+      // 連不上就維持上一次的畫面;下一輪再讀。
     }
-    renderStatus();
+    if (seq === refreshSeq) renderStatus();
   };
 
   const drain = async () => {
-    shots = await uploader.drain(userId, roomId);
-    await refreshRoom();
+    try {
+      await uploader.drain(userId, roomId);
+    } catch {
+      // IndexedDB 出錯(空間不足、被瀏覽器關掉):照片仍在佇列裡,下一輪再試。
+    }
+    await refresh();
   };
 
-  await refreshRoom();
-
-  try {
-    await openCamera(video);
-  } catch (error) {
-    const name = (error as { name?: string }).name;
-    const problem =
-      name === 'Insecure'
-        ? 'insecure'
-        : name === 'Unsupported'
-          ? 'unsupported'
-          : classifyCameraError(error);
-    cameraError.textContent = describeCameraProblem(problem);
-    cameraError.hidden = false;
-  }
   const filter = (): FilmFilterKey => view?.filter ?? 'warm_portrait';
-  startPreview(renderer, preview, video, filter);
+  const beginPreview = () => {
+    stopPreview?.();
+    if (!renderer) return;
+    stopPreview = startPreview(renderer, preview, video, filter, () => {
+      // 多半是 GPU context 被收回;等 webglcontextrestored 重建。
+      renderStatus();
+    });
+  };
+
+  preview.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    stopPreview?.();
+    stopPreview = null;
+    renderer = null;
+    renderStatus();
+  });
+  preview.addEventListener('webglcontextrestored', () => {
+    renderer = createFilmRenderer(preview);
+    if (!renderer) {
+      showCameraError('畫面被系統收回了,請重新整理這一頁');
+    } else {
+      beginPreview();
+    }
+    renderStatus();
+  });
+
+  await refresh();
+
+  const startCamera = async (open: () => Promise<unknown>) => {
+    try {
+      await open();
+      cameraReady = true;
+      showCameraError(null);
+    } catch (error) {
+      cameraReady = false;
+      const name = (error as { name?: string }).name;
+      const problem =
+        name === 'Insecure'
+          ? 'insecure'
+          : name === 'Unsupported'
+            ? 'unsupported'
+            : classifyCameraError(error);
+      showCameraError(describeCameraProblem(problem));
+    }
+    renderStatus();
+  };
+  await startCamera(() => openCamera(video));
+  if (cameraReady) beginPreview();
 
   shutter.addEventListener('click', async () => {
-    if (busy || !view?.canShoot) return;
+    if (busy || !cameraReady || !renderer || !view?.canShoot) return;
     busy = true;
     renderStatus();
     try {
@@ -233,21 +312,26 @@ async function cameraScreen(backend: Backend, roomId: string, userId: string): P
         attempts: 0,
         nextAttemptAt: 0,
       });
-      shots = await store.list(userId, roomId);
-      await refreshRoom();
+      showCameraError(null);
     } catch {
-      cameraError.textContent = '這張沒拍成,請再按一次快門';
-      cameraError.hidden = false;
+      showCameraError('這張沒拍成,請再按一次快門');
     } finally {
       busy = false;
-      renderStatus();
     }
+    await refresh();
     void drain();
   });
 
   window.addEventListener('online', () => void drain());
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void drain();
+    if (document.visibilityState !== 'visible') return;
+    // 回到前景:相機可能被系統停了,先接回來再讓快門亮。
+    cameraReady = false;
+    renderStatus();
+    void startCamera(() => resumeCamera(video)).then(() => {
+      if (cameraReady && !stopPreview) beginPreview();
+    });
+    void drain();
   });
   setInterval(() => void drain(), 15_000);
   void drain();
@@ -277,4 +361,4 @@ async function main(): Promise<void> {
   await cameraScreen(backend, member.roomId, member.userId);
 }
 
-void main();
+main().catch(() => showMessage('出了點問題', UNREACHABLE_MESSAGE));

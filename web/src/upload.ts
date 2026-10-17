@@ -78,52 +78,98 @@ async function upload(
   if (!row.granted) throw new StepFailure(row.reason ?? 'finalize-failed');
 }
 
+export interface SendOptions {
+  /** 扣到配額的那一刻呼叫(先把 photoId 寫回本機,畫面上的剩餘張數才不會重複扣)。 */
+  onClaimed?: (shot: Shot) => Promise<void>;
+  /** 0–1 的亂數,給退避加抖動(許多訪客同時恢復連線時不要同一刻一起撞)。 */
+  random?: () => number;
+}
+
 /** 試送一張。回傳更新過的那一列(呼叫端負責寫回)。 */
-export async function sendShot(backend: Backend, shot: Shot, now: number): Promise<Shot> {
+export async function sendShot(
+  backend: Backend,
+  shot: Shot,
+  now: number,
+  options: SendOptions = {},
+): Promise<Shot> {
   let photoId = shot.photoId;
   try {
     if (!shot.full || !shot.thumbnail) {
       // 位元組不在了(不該發生:送完才丟)。不能重試,也不能假裝成功。
       throw new StepFailure('file-missing');
     }
-    photoId ??= await claim(backend, shot);
+    if (photoId === null) {
+      photoId = await claim(backend, shot);
+      await options.onClaimed?.({ ...shot, photoId });
+    }
     await upload(backend, photoId, shot.full, shot.thumbnail);
     return { ...shot, photoId, state: 'uploaded', reason: null, full: null, thumbnail: null };
   } catch (error) {
     const reason = error instanceof StepFailure ? error.reason : 'unreachable';
     const failure = reason === 'file-missing' ? { reason, permanent: true } : photoFailure(reason);
     const attempts = shot.attempts + 1;
+    if (failure.permanent) {
+      // 確定不會再送了:位元組一起丟掉,不然每張被拒的照片都在 IndexedDB 佔好幾 MB。
+      return {
+        ...shot,
+        photoId,
+        state: 'rejected',
+        reason: failure.reason,
+        attempts,
+        full: null,
+        thumbnail: null,
+      };
+    }
+    const backoff = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (attempts - 1));
+    const jitter = 0.5 + (options.random ?? Math.random)() / 2;
     return {
       ...shot,
       photoId,
-      state: failure.permanent ? 'rejected' : 'waiting',
+      state: 'waiting',
       reason: failure.reason,
       attempts,
-      nextAttemptAt: now + Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (attempts - 1)),
+      nextAttemptAt: now + Math.round(backoff * jitter),
     };
   }
 }
 
 /**
- * 把這一卷裡輪得到的照片依序送一次。同一時間只跑一輪(`running`),不然兩輪會同時扣同一張。
- * 回傳送完之後的整份清單。
+ * 把這一卷裡輪得到的照片依序送一次。同一時間只跑一輪,不然兩輪會同時扣同一張;跑到一半又被叫
+ * (剛拍好一張),這一輪跑完會再跑一輪,新的那張不必等下一次計時器。回傳送完之後的整份清單。
  */
-export function createUploader(backend: Backend, store: ShotStore) {
+export function createUploader(
+  backend: Backend,
+  store: ShotStore,
+  options: { random?: () => number } = {},
+) {
   let running: Promise<Shot[]> | null = null;
-  async function drainOnce(userId: string, roomId: string, now: () => number): Promise<Shot[]> {
+  let again = false;
+  async function drainOnce(userId: string, roomId: string, now: () => number): Promise<void> {
     const shots = await store.list(userId, roomId);
     for (const shot of shots) {
       if (shot.state !== 'waiting' || shot.nextAttemptAt > now()) continue;
-      const next = await sendShot(backend, shot, now());
+      const next = await sendShot(backend, shot, now(), {
+        random: options.random,
+        onClaimed: (claimed) => store.put(claimed),
+      });
       await store.put(next);
-      // 連不上就不要一張一張撞下去,等下一輪。
-      if (next.state === 'waiting' && next.reason === 'unreachable') break;
+      // 暫時性的失敗(連不上、簽章或 R2 出狀況)代表後面幾張多半也會失敗:等下一輪,不要一張張撞。
+      if (next.state === 'waiting') break;
     }
-    return store.list(userId, roomId);
   }
   return {
     drain(userId: string, roomId: string, now: () => number = Date.now): Promise<Shot[]> {
-      running ??= drainOnce(userId, roomId, now).finally(() => {
+      if (running) {
+        again = true;
+        return running;
+      }
+      running = (async () => {
+        do {
+          again = false;
+          await drainOnce(userId, roomId, now);
+        } while (again);
+        return store.list(userId, roomId);
+      })().finally(() => {
         running = null;
       });
       return running;

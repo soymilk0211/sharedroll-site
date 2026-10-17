@@ -37,6 +37,36 @@ export function classifyCameraError(error: unknown): CameraProblem {
   return 'other';
 }
 
+/**
+ * 這一格是不是「現在」的畫面。iOS 切到背景再回來時,`<video>` 會停在最後一格(`videoWidth` 照樣
+ * 有值),track 也可能已經 `ended`——那時按快門燒出來的是舊畫面,違反「只能當場拍」。
+ */
+export function cameraIsLive(video: HTMLVideoElement): boolean {
+  const stream = video.srcObject as MediaStream | null;
+  const track = stream?.getVideoTracks()[0];
+  return (
+    !!track &&
+    track.readyState === 'live' &&
+    !track.muted &&
+    !video.paused &&
+    video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+    video.videoWidth > 0 &&
+    video.videoHeight > 0
+  );
+}
+
+/** 回到前景時:track 還在就讓 video 繼續播,斷了就重開一次相機。 */
+export async function resumeCamera(video: HTMLVideoElement): Promise<void> {
+  const stream = video.srcObject as MediaStream | null;
+  const track = stream?.getVideoTracks()[0];
+  if (track && track.readyState === 'live') {
+    await video.play();
+    return;
+  }
+  stream?.getTracks().forEach((t) => t.stop());
+  await openCamera(video);
+}
+
 export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> {
   if (!window.isSecureContext) throw Object.assign(new Error('insecure'), { name: 'Insecure' });
   if (!navigator.mediaDevices?.getUserMedia) {
@@ -103,9 +133,9 @@ export async function burnFrame(
   filter: FilmFilterKey,
   clientKey: string,
 ): Promise<BurnedPhoto> {
+  if (!cameraIsLive(video)) throw new Error('相機還沒準備好');
   const width = video.videoWidth;
   const height = video.videoHeight;
-  if (!width || !height) throw new Error('相機還沒準備好');
   const rect = cropToPhotoAspect(width, height);
   const size = fitWithin(rect, Math.min(MAX_EDGE, renderer.maxTextureSize));
   const textures: FilmTexture[] = [];
@@ -140,34 +170,48 @@ export function startPreview(
   canvas: HTMLCanvasElement,
   video: HTMLVideoElement,
   filter: () => FilmFilterKey,
+  onError: (error: unknown) => void,
 ): () => void {
   let stopped = false;
   let last = 0;
+  // 常駐的那一張:每格寫進同一張貼圖,不重配(每秒 15 次配一張 4K 的貼圖,中低階手機吃不消)。
+  let frame: FilmTexture | null = null;
+  const stop = () => {
+    stopped = true;
+    if (frame) renderer.release(frame);
+    frame = null;
+  };
   const tick = (time: number) => {
     if (stopped) return;
     requestAnimationFrame(tick);
-    if (time - last < PREVIEW_INTERVAL_MS || !video.videoWidth) return;
+    if (time - last < PREVIEW_INTERVAL_MS || !cameraIsLive(video)) return;
     last = time;
     const rect = cropToPhotoAspect(video.videoWidth, video.videoHeight);
-    const widthScale = Math.min(1, PREVIEW_WIDTH / Math.max(rect.width, rect.height));
+    const scale = Math.min(1, PREVIEW_WIDTH / Math.max(rect.width, rect.height));
     const size = {
-      width: Math.max(1, Math.round(rect.width * widthScale)),
-      height: Math.max(1, Math.round(rect.height * widthScale)),
+      width: Math.max(1, Math.round(rect.width * scale)),
+      height: Math.max(1, Math.round(rect.height * scale)),
     };
     if (canvas.width !== size.width || canvas.height !== size.height) {
       canvas.width = size.width;
       canvas.height = size.height;
     }
-    const frame = renderer.upload(video, video.videoWidth, video.videoHeight);
-    const shaped = renderer.crop(frame, rect, size);
-    const burned = renderer.render(shaped, filter(), 0);
-    renderer.present(burned);
-    renderer.release(frame);
-    renderer.release(shaped);
-    renderer.release(burned);
+    const scratch: FilmTexture[] = [];
+    try {
+      frame = renderer.uploadInto(frame, video, video.videoWidth, video.videoHeight);
+      const shaped = renderer.crop(frame, rect, size);
+      scratch.push(shaped);
+      const burned = renderer.render(shaped, filter(), 0);
+      scratch.push(burned);
+      renderer.present(burned);
+    } catch (error) {
+      // 一格失敗(多半是 context 被收回)就停,不要每秒撞 15 次;由呼叫端決定要不要重建。
+      stop();
+      onError(error);
+    } finally {
+      for (const texture of scratch) renderer.release(texture);
+    }
   };
   requestAnimationFrame(tick);
-  return () => {
-    stopped = true;
-  };
+  return stop;
 }

@@ -192,6 +192,34 @@ export class FilmRenderer {
     return result;
   }
 
+  /**
+   * 取景框用:把新的一格寫進同一張貼圖(尺寸沒變就 `texSubImage2D`),不必每格都配一張全解析度
+   * 的新貼圖再刪掉。尺寸變了(轉了方向)才換一張。
+   */
+  uploadInto(
+    previous: FilmTexture | null,
+    source: TexImageSource,
+    width: number,
+    height: number,
+  ): FilmTexture {
+    if (!previous || previous.width !== width || previous.height !== height) {
+      if (previous) this.release(previous);
+      return this.upload(source, width, height);
+    }
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, previous.texture);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+    gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.BROWSER_DEFAULT_WEBGL);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    return previous;
+  }
+
+  /** GPU context 被系統收回了(切到背景、記憶體不夠)。收回之後這個 renderer 不能再用。 */
+  isLost(): boolean {
+    return this.gl.isContextLost();
+  }
+
   /** 用完的貼圖還回去。快取(查表、雜訊)不歸這裡。 */
   release(texture: FilmTexture): void {
     if (this.live.delete(texture)) {
