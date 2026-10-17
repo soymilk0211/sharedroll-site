@@ -116,6 +116,10 @@
     <p class="hint">如果這卷已經開始拍,就不能再加入了,請跟主辦人確認。</p>
     <a class="button primary" id="open" href="#">打開 SharedRoll 進房</a>
     <p class="hint">已經裝了 SharedRoll 的話,按上面那顆就直接進房。</p>
+    <!-- 網頁訪客(冷啟動 SR-CS-W4/W5):不裝 App 直接用網頁拍。相機頁在另一個網址
+         https://sharedroll-join.pages.dev/(Cloudflare Pages,與這個網站不同 origin)。
+         上線前關著(下面 script 的 WEB_CAMERA_ENABLED),W9 與 sharedroll-join 的 webJoinEnabled 一起打開。 -->
+    <a class="button" id="web" href="#" hidden>不想裝 App?用網頁直接拍</a>
     <a class="button" href="https://apps.apple.com/tw/app/sharedroll/id6807250154">還沒裝?到 App Store 免費下載</a>
     <p class="hint">裝好之後打開 SharedRoll,按「加入房間」,把上面這六碼輸進去。</p>
     <a class="button" href="https://play.google.com/store/apps/details?id=com.sharedroll.app">Android?到 Google Play 免費下載</a>
@@ -155,6 +159,13 @@
   }
   // 只放驗過的那六碼,不把網址上的東西原樣轉進 App。
   document.getElementById('open').setAttribute('href', 'sharedroll://join?code=' + code);
+  // 「用網頁直接拍」的上線開關(W9 才打開)。同樣只帶驗過的六碼,ct 等其他參數不帶過去。
+  var WEB_CAMERA_ENABLED = false;
+  if (WEB_CAMERA_ENABLED) {
+    var web = document.getElementById('web');
+    web.setAttribute('href', 'https://sharedroll-join.pages.dev/?code=' + code);
+    web.hidden = false;
+  }
   document.title = '房間碼 ' + code + ' — SharedRoll';
   document.getElementById('ok').hidden = false;
 })();
