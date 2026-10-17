@@ -69,23 +69,6 @@
   }
   @keyframes turn { to { transform: rotate(360deg); } }
 </style>
-<!-- 流量分析(GoatCounter,免費、無 cookie)。目前關閉:需老闆在 goatcounter.com 註冊站台代碼後,
-     把 GC_CODE 改成該代碼即啟用。會把 utm_source/utm_medium/utm_campaign/ct 參數保留在記錄路徑中,其餘參數丟棄。 -->
-<script>
-(function () {
-  var GC_CODE = ''; // 例:'sharedroll' → https://sharedroll.goatcounter.com
-  if (!GC_CODE) return;
-  var keep = ['utm_source', 'utm_medium', 'utm_campaign', 'ct'];
-  var q = new URLSearchParams(location.search), out = new URLSearchParams();
-  keep.forEach(function (k) { if (q.get(k)) out.set(k, q.get(k)); });
-  var path = location.pathname + (out.toString() ? '?' + out.toString() : '');
-  window.goatcounter = { path: path, no_onload: false };
-  var s = document.createElement('script');
-  s.async = true; s.src = '//gc.zgo.at/count.js';
-  s.setAttribute('data-goatcounter', 'https://' + GC_CODE + '.goatcounter.com/count');
-  document.head.appendChild(s);
-})();
-</script>
 </head>
 <body>
 <main>
