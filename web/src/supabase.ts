@@ -76,7 +76,7 @@ export function createSupabaseBackend(): Backend {
       if (target.protocol !== 'https:' || !target.hostname.endsWith('.r2.cloudflarestorage.com')) {
         return { blob: null, status: 0 };
       }
-      const response = await fetch(target, { credentials: 'omit', cache: 'no-store' });
+      const response = await fetch(target, { credentials: 'omit', cache: 'no-store', redirect: 'error' });
       return { blob: response.ok ? await response.blob() : null, status: response.status };
     },
     async put(url, body, contentType) {

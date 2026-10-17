@@ -165,7 +165,7 @@ export class PhotoLoader {
       const urls = batch?.urls.get(photoId);
       if (!urls) return null;
       const { blob: raw } = await this.backend.fetchBlob(urls.full.url);
-      if (this.disposed || !raw || !(await isJpeg(raw))) return null;
+      if (this.disposed || !raw || !(await isJpeg(raw)) || this.disposed) return null;
       // 型別一律自己定成 JPEG,不沿用 R2 回的 Content-Type:blob: 網址繼承本站來源,
       // 別人上傳的東西如果被當成 SVG/HTML 在新分頁打開,就能讀到這裡的登入狀態。
       const blob = new Blob([raw], { type: 'image/jpeg' });
@@ -231,11 +231,11 @@ export function downloadName(roomName: string, index: number): string {
   // (不變成隱藏檔);用 Array.from 切,不把 emoji 切成半個。
   const cleaned = roomName
     .replace(
-      /[\\/:*?"<>|\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g,
+      /[\\/:*?"<>|\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\u2060\u061c\ufeff]/g,
       '',
     )
     .trim()
-    .replace(/^\.+/, '');
+    .replace(/^[.\s]+/, '');
   const safe = Array.from(cleaned).slice(0, 40).join('').trim() || 'SharedRoll';
   return `${safe}-${String(index + 1).padStart(2, '0')}.jpg`;
 }
