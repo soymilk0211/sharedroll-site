@@ -66,6 +66,11 @@ if (existsSync(join(root, 'camera'))) {
   fail('repo 根目錄又出現 camera/:GitHub Pages 會把它發佈到舊網址 soymilk0211.github.io/sharedroll-site/camera/');
 }
 
+// .nojekyll 會讓 GitHub Pages 跳過 Jekyll,_config.yml 的 exclude 失效,web/ 原始碼就會發佈到 github.io。
+if (existsSync(join(root, '.nojekyll'))) {
+  fail('repo 根目錄不能有 .nojekyll:_config.yml 的 exclude 會失效,web/ 會發佈到 soymilk0211.github.io');
+}
+
 if (problems.length > 0) {
   for (const problem of problems) console.error(`::error::${problem}`);
   process.exit(1);

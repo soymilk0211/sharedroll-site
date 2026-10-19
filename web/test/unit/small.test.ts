@@ -101,10 +101,16 @@ describe('camera errors', () => {
 });
 
 describe('isServingHost', () => {
-  it('runs only on the production Pages host (and local dev)', () => {
-    expect(isServingHost('sharedroll-join.pages.dev')).toBe(true);
-    expect(isServingHost('SharedRoll-Join.pages.dev')).toBe(true);
-    expect(isServingHost('localhost')).toBe(true);
+  it('runs only on the production Pages host (and local hosts in dev builds)', () => {
+    expect(isServingHost('sharedroll-join.pages.dev', false)).toBe(true);
+    expect(isServingHost('SharedRoll-Join.pages.dev', false)).toBe(true);
+    expect(isServingHost('localhost', true)).toBe(true);
+    expect(isServingHost('127.0.0.1', true)).toBe(true);
+  });
+  it('treats local hosts as closed in production builds', () => {
+    for (const host of ['localhost', '127.0.0.1', '[::1]']) {
+      expect(isServingHost(host, false)).toBe(false);
+    }
   });
   it('treats preview deployments and any other host as closed', () => {
     for (const host of [
@@ -115,7 +121,7 @@ describe('isServingHost', () => {
       'evil-sharedroll-join.pages.dev',
       '',
     ]) {
-      expect(isServingHost(host)).toBe(false);
+      expect(isServingHost(host, true)).toBe(false);
     }
   });
 });
