@@ -18,6 +18,7 @@ import { CONFIG } from './config';
 import { photoFailure, UNREACHABLE_MESSAGE } from './failures';
 import type { FilmFilterKey } from './film/recipes';
 import { createFilmRenderer, type FilmRenderer } from './film/webgl';
+import { isServingHost } from './host';
 import { detectInAppBrowser, externalBrowserUrl } from './in-app-browser';
 import { joinAsGuest, resumeIfJoined } from './join';
 import { openShotStore, pendingCount, unclaimedCount, type Shot, type ShotStore } from './queue';
@@ -415,11 +416,17 @@ async function main(): Promise<void> {
   }
   // Turnstile 是上線的硬性前提(匿名帳號很便宜,沒有它,窮舉房間碼的速度只受 IP 限制):
   // 開關打開了、site key 卻沒填,照樣當作還沒開放。
-  if (!CONFIG.webJoinEnabled || CONFIG.turnstileSiteKey === '') {
+  // preview 部署(`<hash>.sharedroll-join.pages.dev`)或任何別的網址上,也當作還沒開放(host.ts)。
+  if (
+    !CONFIG.webJoinEnabled ||
+    CONFIG.turnstileSiteKey === '' ||
+    !isServingHost(location.hostname)
+  ) {
     show('closed');
     return;
   }
-  // 被別的網站用 iframe 嵌進去(clickjacking):GitHub Pages 設不了 frame-ancestors,這裡自己擋。
+  // 被別的網站用 iframe 嵌進去(clickjacking):_headers 的 frame-ancestors 'none' 已經擋了,
+  // 這裡再擋一層(標頭沒套上時也有效)。
   if (window.top !== window.self) {
     showMessage('請直接打開這個網址', '這一頁不能放在別的網站裡面使用。');
     return;

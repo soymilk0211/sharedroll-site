@@ -5,13 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <!--
-  網頁訪客的加入與相機(冷啟動 SR-CS-W4)。原始碼在 sharedroll-site 的 web/,`npm run build` 產出
-  到 /camera/;GitHub Pages 直接發佈那個資料夾。
+  網頁訪客的加入、相機、開箱與轉移碼(冷啟動 SR-CS-W4／W5)。原始碼在 sharedroll-site 的 web/,
+  Cloudflare Pages 專案 sharedroll-join 用 `npm run build` 建到 dist/ 再發佈到
+  https://sharedroll-join.pages.dev/(web/README.md)。
 
-  CSP:只連得到 Supabase、R2(presigned 上傳)與 Turnstile。匿名 session 存在 localStorage,
-  所以這一頁不能載任何第三方腳本——一段被塞進來的腳本就讀得走它。
+  CSP 不寫在這裡:改成 Pages 的 HTTP 標頭(web/public/_headers),才加得上 frame-ancestors。
+  只連得到 Supabase、R2(presigned 上傳／下載)與 Turnstile。匿名 session 存在 localStorage,
+  所以這一頁不能載任何第三方腳本(Turnstile 除外)——一段被塞進來的腳本就讀得走它。
 -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://mkqdchybsjccxlnhkqsh.supabase.co https://*.r2.cloudflarestorage.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>用網頁一起拍 — SharedRoll</title>
 <link rel="stylesheet" href="./src/styles.css">

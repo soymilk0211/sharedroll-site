@@ -1,2 +1,4 @@
 node_modules
 .vite/
+# Cloudflare Pages 自己建置(web/README.md),產物不 commit。
+dist/

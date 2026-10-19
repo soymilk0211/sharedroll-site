@@ -12,11 +12,13 @@ export const CONFIG = {
    * **上線的硬性前提**:這裡空著時,就算 `webJoinEnabled` 打開,頁面也照樣顯示「即將開放」
    * (`main.ts`)。匿名帳號很便宜,沒有 captcha,窮舉房間碼的速度只受每 IP 的限制。
    */
-  turnstileSiteKey: '',
+  turnstileSiteKey: '0x4AAAAAAFbHmA_S-Vd1vMc0' as string,
   /**
    * **上線開關。** 關著的時候這一頁只顯示「網頁版即將開放」與下載連結,不建匿名帳號。
    * 要等三件事都做完才打開:W1/W2 的 db push、W8 的後台設定(匿名登入、captcha、R2 CORS)、
-   * 實機測過一輪。打開的同一個 PR 也要把 /join/ 的「用網頁直接拍」按鈕加上(主 repo 的 join/index.html)。
+   * 實機測過一輪。打開的同一個 PR 也要把 /join/ 的「用網頁直接拍」按鈕打開(sharedroll-site 的
+   * join/index.html 的 `WEB_CAMERA_ENABLED`,按鈕連到 https://sharedroll-join.pages.dev/?code=…;
+   * 主 repo 的 join/index.html 一起同步,再跑 mirrors:sync)。
    */
   webJoinEnabled: false,
   privacyPolicyUrl: 'https://soymilk0211.github.io/sharedroll-legal/privacy-policy',
