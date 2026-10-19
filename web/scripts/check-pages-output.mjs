@@ -72,6 +72,15 @@ if (existsSync(join(root, '.nojekyll'))) {
   fail('repo 根目錄不能有 .nojekyll:_config.yml 的 exclude 會失效,web/ 會發佈到 soymilk0211.github.io');
 }
 
+// Smart App Banner:加入頁要有(沒裝 App 的人一鍵去 App Store),相機頁不能有(會蓋住取景框)。
+const BANNER = /<meta name="apple-itunes-app" content="app-id=6807250154">/;
+if (existsSync(join(dist, 'join/index.html')) && !BANNER.test(readFileSync(join(dist, 'join/index.html'), 'utf8'))) {
+  fail('dist/join/index.html 少了 Smart App Banner(apple-itunes-app app-id=6807250154)');
+}
+if (existsSync(join(dist, 'index.html')) && /apple-itunes-app/.test(readFileSync(join(dist, 'index.html'), 'utf8'))) {
+  fail('相機頁 dist/index.html 不能有 Smart App Banner');
+}
+
 if (problems.length > 0) {
   for (const problem of problems) console.error(`::error::${problem}`);
   process.exit(1);
