@@ -1,0 +1,35 @@
+# 網頁訪客頁(web/)的檢查。產物 dist/ 由 Cloudflare Pages 專案 sharedroll-join 自己建置發佈
+# (web/README.md),不 commit;這裡用同一條指令建一次,確認建得起來、建出來的東西是 Pages 要的樣子。
+# job 名稱 `check` 是 main 分支保護的必過檢查(W8 第 3c 步),不要改名。
+name: camera
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # 釘 commit SHA(v5),tag 可以被改指向。
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      # 與 Cloudflare Pages 後台的建置指令相同(npm ci && npm run build,輸出 dist)。
+      - run: npm run build
+      - name: Pages 產物(dist/)檢查
+        run: node web/scripts/check-pages-output.mjs
+      - name: 濾鏡 golden(WebGL2 對 App 的 CanvasKit,ΔE 平均 < 2)
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+        run: npm run golden
