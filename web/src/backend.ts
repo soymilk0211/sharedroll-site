@@ -26,6 +26,13 @@ export interface ParticipantRow {
   removed_at: string | null;
 }
 
+export interface PhotoRow {
+  id: string;
+  taken_at: string;
+  orientation: 'landscape' | 'portrait';
+  full_object_key: string | null;
+}
+
 export interface Backend {
   /** 目前登入的是誰。沒有 session 回 null。 */
   currentUserId(): Promise<string | null>;
@@ -44,6 +51,17 @@ export interface Backend {
     roomId: string,
     userId: string,
   ): Promise<{ data: ParticipantRow | null; error: unknown }>;
+  /**
+   * 這一卷的照片,依伺服器抵達序號排(開箱時人人同一個順序),`from`–`to` 是分頁範圍(含兩端)。
+   * 解鎖前 RLS 一列都不給,包含作者自己。**不讀 author_id**:開箱這一段不顯示是誰拍的。
+   */
+  readPhotos(
+    roomId: string,
+    from: number,
+    to: number,
+  ): Promise<{ data: PhotoRow[] | null; error: unknown }>;
+  /** 從 presigned GET 網址把位元組拿回來(要 R2 的 CORS 放行 GET,W8 第 3 步)。 */
+  fetchBlob(url: string): Promise<{ blob: Blob | null; status: number }>;
   /** 把一段位元組 PUT 到 presigned URL。 */
   put(url: string, body: Blob, contentType: string): Promise<{ ok: boolean; status: number }>;
 }

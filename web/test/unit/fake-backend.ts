@@ -1,4 +1,4 @@
-import type { Backend, ParticipantRow, RoomRow, RpcResult } from '../../src/backend';
+import type { Backend, ParticipantRow, PhotoRow, RoomRow, RpcResult } from '../../src/backend';
 
 export interface Call {
   kind: string;
@@ -18,6 +18,8 @@ export function fakeBackend(options: {
   roomByCode?: { id: string } | null;
   room?: RoomRow | null;
   me?: ParticipantRow | null;
+  photos?: PhotoRow[];
+  blob?: (url: string) => Blob | null;
 }) {
   const calls: Call[] = [];
   let userId = options.userId ?? null;
@@ -51,6 +53,17 @@ export function fakeBackend(options: {
     async readMyParticipant(roomId, uid) {
       calls.push({ kind: 'read', name: 'participant', args: [roomId, uid] });
       return { data: options.me ?? null, error: null };
+    },
+    async readPhotos(roomId, from, to) {
+      calls.push({ kind: 'read', name: 'photos', args: [roomId, from, to] });
+      return { data: (options.photos ?? []).slice(from, to + 1), error: null };
+    },
+    async fetchBlob(url) {
+      calls.push({ kind: 'get', name: url, args: null });
+      const blob = options.blob
+        ? options.blob(url)
+        : new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])]);
+      return { blob, status: blob ? 200 : 403 };
     },
     async put(url, body, contentType) {
       calls.push({ kind: 'put', name: url, args: { size: body.size, contentType } });
