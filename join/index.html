@@ -83,26 +83,6 @@
   footer a { color: var(--muted); }
   [hidden] { display: none !important; }
 </style>
-<!-- 流量分析(GoatCounter,免費、無 cookie)。目前關閉:需老闆在 goatcounter.com 註冊站台代碼後,
-     把 GC_CODE 改成該代碼即啟用。會把 utm_source/utm_medium/utm_campaign/ct 參數保留在記錄路徑中,其餘參數丟棄。
-     房間碼(code)不進記錄。ct 是海報 QR 的來源標記(冷啟動 SR-CS-02),與 App 的 src/rooms/join-link.ts
-     用同一條白名單 ^[a-z0-9_-]{1,32}$,不合的丟掉不記。 -->
-<script>
-(function () {
-  var GC_CODE = ''; // 例:'sharedroll' → https://sharedroll.goatcounter.com
-  if (!GC_CODE) return;
-  var keep = ['utm_source', 'utm_medium', 'utm_campaign', 'ct'];
-  var q = new URLSearchParams(location.search), out = new URLSearchParams();
-  keep.forEach(function (k) { if (q.get(k)) out.set(k, q.get(k)); });
-  if (out.has('ct') && !/^[a-z0-9_-]{1,32}$/.test(out.get('ct'))) out.delete('ct');
-  var path = location.pathname + (out.toString() ? '?' + out.toString() : '');
-  window.goatcounter = { path: path, no_onload: false };
-  var s = document.createElement('script');
-  s.async = true; s.src = '//gc.zgo.at/count.js';
-  s.setAttribute('data-goatcounter', 'https://' + GC_CODE + '.goatcounter.com/count');
-  document.head.appendChild(s);
-})();
-</script>
 </head>
 <body>
 <main>
