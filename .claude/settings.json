@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+      "Read(**/*.pem)",
+      "Read(**/*.p8)",
+      "Read(**/*.p12)",
+      "Read(**/*.key)",
+      "Read(**/*.keystore)",
+      "Read(**/*.jks)",
+      "Read(**/google-services.json)",
+      "Read(**/GoogleService-Info.plist)",
+      "Edit(./.env)",
+      "Edit(./.env.*)",
+      "Edit(**/.env)",
+      "Edit(**/.env.*)",
+      "Edit(**/*.pem)",
+      "Edit(**/*.p8)",
+      "Edit(**/*.p12)",
+      "Edit(**/*.key)",
+      "Edit(**/*.keystore)",
+      "Edit(**/*.jks)",
+      "Edit(**/google-services.json)",
+      "Edit(**/GoogleService-Info.plist)"
+    ]
+  }
+}
