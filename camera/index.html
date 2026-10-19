@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<!--
+  網頁訪客的加入與相機(冷啟動 SR-CS-W4)。原始碼在 sharedroll-site 的 web/,`npm run build` 產出
+  到 /camera/;GitHub Pages 直接發佈那個資料夾。
+
+  CSP:只連得到 Supabase、R2(presigned 上傳)與 Turnstile。匿名 session 存在 localStorage,
+  所以這一頁不能載任何第三方腳本——一段被塞進來的腳本就讀得走它。
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://challenges.cloudflare.com; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: mediastream:; connect-src 'self' https://mkqdchybsjccxlnhkqsh.supabase.co https://*.r2.cloudflarestorage.com; frame-src https://challenges.cloudflare.com; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>用網頁一起拍 — SharedRoll</title>
+  <script type="module" crossorigin src="/sharedroll-site/camera/assets/index-B29N344B.js"></script>
+  <link rel="stylesheet" crossorigin href="/sharedroll-site/camera/assets/index-2LoKwYR1.css">
+</head>
+<body>
+<main>
+  <div class="wordmark">SharedRoll</div>
+
+  <section id="screen-closed" hidden>
+    <h1>網頁版即將開放</h1>
+    <p class="hint">現在請先下載 SharedRoll,打開之後按「加入房間」輸入房間碼。</p>
+    <p class="label">房間碼</p>
+    <div class="code" data-code></div>
+    <a class="button primary" data-app-store>到 App Store 免費下載</a>
+    <a class="button" data-play-store>Android?到 Google Play 免費下載</a>
+  </section>
+
+  <section id="screen-bad-link" hidden>
+    <h1>這條連結不完整</h1>
+    <p class="hint">裡面沒有房間碼。請房主再分享一次,或直接跟他要那六碼,在 SharedRoll 裡按「加入房間」輸進去。</p>
+    <a class="button" data-app-store>還沒裝?到 App Store 免費下載</a>
+  </section>
+
+  <section id="screen-in-app" hidden>
+    <h1>請用 Safari 或 Chrome 打開</h1>
+    <p class="hint">LINE、IG 這類 App 內建的瀏覽器常常打不開相機,或每拍一張就問一次權限。</p>
+    <a class="button primary" id="open-external" hidden>用手機的瀏覽器打開</a>
+    <button class="button primary" id="copy-link" type="button">複製連結</button>
+    <p class="hint" id="copy-done" hidden>複製好了。打開 Safari 或 Chrome,貼到網址列。</p>
+    <button class="button link" id="continue-anyway" type="button">還是在這裡試試看</button>
+  </section>
+
+  <section id="screen-join" hidden>
+    <h1>不用下載,用網頁一起拍這一卷</h1>
+    <p class="label">房間碼</p>
+    <div class="code" data-code></div>
+    <form id="join-form" novalidate>
+      <label class="label" for="nickname">你的名字(同一卷的人會看到)</label>
+      <input id="nickname" name="nickname" type="text" autocomplete="nickname" maxlength="40" required>
+      <label class="agree">
+        <input id="agree" type="checkbox">
+        <span>我同意<a data-privacy target="_blank" rel="noopener">隱私權政策</a>與<a data-eula target="_blank" rel="noopener">使用者授權合約</a></span>
+      </label>
+      <div id="turnstile"></div>
+      <p class="error" id="join-error" role="alert" hidden></p>
+      <button class="button primary" id="join-submit" type="submit">加入</button>
+    </form>
+    <p class="hint dim">網頁版的照片只留在這個瀏覽器裡 7 天。想永久保存,下載 App 並登入。</p>
+    <a class="button" data-app-store>下載 App(照片保存更久)</a>
+  </section>
+
+  <section id="screen-camera" hidden>
+    <p class="room-name" id="room-name"></p>
+    <p class="headline" id="room-headline"></p>
+    <p class="hint" id="room-unlock"></p>
+    <div class="viewfinder">
+      <canvas id="preview" aria-label="取景框"></canvas>
+      <video id="video" playsinline muted hidden></video>
+    </div>
+    <p class="error" id="camera-error" role="alert" hidden></p>
+    <button class="shutter" id="shutter" type="button" aria-label="拍照" disabled></button>
+    <p class="hint" id="queue-status" aria-live="polite"></p>
+    <ul class="rejected" id="rejected"></ul>
+    <p class="hint dim">網頁版請保持連線,拍完會自動送出。照片要等開箱那一刻才看得到。</p>
+  </section>
+
+  <section id="screen-message" hidden>
+    <h1 id="message-title"></h1>
+    <p class="hint" id="message-body"></p>
+    <a class="button" data-app-store>下載 SharedRoll</a>
+  </section>
+</main>
+<footer><a href="https://soymilk0211.github.io/sharedroll-site/">SharedRoll</a> · 一群人,共用一卷底片</footer>
+</body>
+</html>

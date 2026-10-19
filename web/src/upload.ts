@@ -1,0 +1,190 @@
+/**
+ * 把一張照片送進這一卷:扣配額 → 要兩層的上傳網址 → PUT 兩層到 R2 → 登記完成。
+ *
+ * 與 App 同一條路(`src/camera/claim.ts`、`src/storage/object-storage.ts`),每一步都冪等:
+ * clientKey 讓重扣拿回同一個 photo_id,物件鍵是決定性的,finalize 設回同一組鍵。所以失敗了
+ * 就整張從頭再跑,不必記「停在哪一步」。
+ */
+
+import type { Backend } from './backend';
+import { photoFailure } from './failures';
+import type { Shot, ShotStore } from './queue';
+
+export const PHOTO_CONTENT_TYPE = 'image/jpeg';
+/** `photo_upload_grant` 對已 finalize 的照片回的原因(主 repo SR-CS-W4b)。 */
+export const ALREADY_UPLOADED = 'already-uploaded';
+const RETRY_BASE_MS = 5_000;
+const RETRY_MAX_MS = 60_000;
+
+interface ClaimRow {
+  granted: boolean;
+  reason: string | null;
+  photo_id: string | null;
+}
+
+interface SignedObject {
+  url: string;
+  key: string;
+}
+
+type SignResponse =
+  { ok: true; full: SignedObject; thumbnail: SignedObject } | { ok: false; reason: string };
+
+interface FinalizeRow {
+  granted: boolean;
+  reason: string | null;
+}
+
+class StepFailure extends Error {
+  constructor(readonly reason: string) {
+    super(reason);
+  }
+}
+
+async function claim(backend: Backend, shot: Shot): Promise<string> {
+  const { data, error } = await backend.rpc('claim_quota_photo', {
+    p_room_id: shot.roomId,
+    p_client_key: shot.clientKey,
+    p_taken_at: shot.takenAt,
+    p_orientation: shot.orientation,
+  });
+  if (error) throw new StepFailure('unreachable');
+  const row = ((data as ClaimRow[] | null) ?? [])[0];
+  if (!row) throw new StepFailure('unreachable');
+  if (!row.granted || !row.photo_id) throw new StepFailure(row.reason ?? 'unreachable');
+  return row.photo_id;
+}
+
+async function upload(
+  backend: Backend,
+  photoId: string,
+  full: Blob,
+  thumbnail: Blob,
+): Promise<void> {
+  const signed = await backend.invoke('photo-storage', {
+    action: 'upload',
+    photoId,
+    bytes: { full: full.size, thumbnail: thumbnail.size },
+  });
+  if (signed.error || !signed.data) throw new StepFailure('function-error');
+  const response = signed.data as SignResponse;
+  if (!response.ok && response.reason === ALREADY_UPLOADED) {
+    // 上一次 finalize 寫進去了、回應卻沒回來(SR-CS-W4b:傳完的照片不再簽上傳網址)。位元組早就在
+    // R2 上:不再 PUT,再 finalize 一次(冪等)就是完成。
+    await finalize(backend, photoId);
+    return;
+  }
+  if (!response.ok) throw new StepFailure(response.reason);
+  const first = await backend.put(response.full.url, full, PHOTO_CONTENT_TYPE);
+  if (!first.ok) throw new StepFailure('upload-put-failed');
+  const second = await backend.put(response.thumbnail.url, thumbnail, PHOTO_CONTENT_TYPE);
+  if (!second.ok) throw new StepFailure('upload-put-failed');
+  await finalize(backend, photoId);
+}
+
+async function finalize(backend: Backend, photoId: string): Promise<void> {
+  const finalized = await backend.rpc('finalize_photo_upload', { p_photo_id: photoId });
+  if (finalized.error) throw new StepFailure('finalize-error');
+  const row = ((finalized.data as FinalizeRow[] | null) ?? [])[0];
+  if (!row) throw new StepFailure('finalize-error');
+  if (!row.granted) throw new StepFailure(row.reason ?? 'finalize-failed');
+}
+
+export interface SendOptions {
+  /** 扣到配額的那一刻呼叫(先把 photoId 寫回本機,畫面上的剩餘張數才不會重複扣)。 */
+  onClaimed?: (shot: Shot) => Promise<void>;
+  /** 0–1 的亂數,給退避加抖動(許多訪客同時恢復連線時不要同一刻一起撞)。 */
+  random?: () => number;
+}
+
+/** 試送一張。回傳更新過的那一列(呼叫端負責寫回)。 */
+export async function sendShot(
+  backend: Backend,
+  shot: Shot,
+  now: number,
+  options: SendOptions = {},
+): Promise<Shot> {
+  let photoId = shot.photoId;
+  try {
+    if (!shot.full || !shot.thumbnail) {
+      // 位元組不在了(不該發生:送完才丟)。不能重試,也不能假裝成功。
+      throw new StepFailure('file-missing');
+    }
+    if (photoId === null) {
+      photoId = await claim(backend, shot);
+      await options.onClaimed?.({ ...shot, photoId });
+    }
+    await upload(backend, photoId, shot.full, shot.thumbnail);
+    return { ...shot, photoId, state: 'uploaded', reason: null, full: null, thumbnail: null };
+  } catch (error) {
+    const reason = error instanceof StepFailure ? error.reason : 'unreachable';
+    const failure = reason === 'file-missing' ? { reason, permanent: true } : photoFailure(reason);
+    const attempts = shot.attempts + 1;
+    if (failure.permanent) {
+      // 確定不會再送了:位元組一起丟掉,不然每張被拒的照片都在 IndexedDB 佔好幾 MB。
+      return {
+        ...shot,
+        photoId,
+        state: 'rejected',
+        reason: failure.reason,
+        attempts,
+        full: null,
+        thumbnail: null,
+      };
+    }
+    const backoff = Math.min(RETRY_MAX_MS, RETRY_BASE_MS * 2 ** (attempts - 1));
+    const jitter = 0.5 + (options.random ?? Math.random)() / 2;
+    return {
+      ...shot,
+      photoId,
+      state: 'waiting',
+      reason: failure.reason,
+      attempts,
+      nextAttemptAt: now + Math.round(backoff * jitter),
+    };
+  }
+}
+
+/**
+ * 把這一卷裡輪得到的照片依序送一次。同一時間只跑一輪,不然兩輪會同時扣同一張;跑到一半又被叫
+ * (剛拍好一張),這一輪跑完會再跑一輪,新的那張不必等下一次計時器。回傳送完之後的整份清單。
+ */
+export function createUploader(
+  backend: Backend,
+  store: ShotStore,
+  options: { random?: () => number } = {},
+) {
+  let running: Promise<Shot[]> | null = null;
+  let again = false;
+  async function drainOnce(userId: string, roomId: string, now: () => number): Promise<void> {
+    const shots = await store.list(userId, roomId);
+    for (const shot of shots) {
+      if (shot.state !== 'waiting' || shot.nextAttemptAt > now()) continue;
+      const next = await sendShot(backend, shot, now(), {
+        random: options.random,
+        onClaimed: (claimed) => store.put(claimed),
+      });
+      await store.put(next);
+      // 暫時性的失敗(連不上、簽章或 R2 出狀況)代表後面幾張多半也會失敗:等下一輪,不要一張張撞。
+      if (next.state === 'waiting') break;
+    }
+  }
+  return {
+    drain(userId: string, roomId: string, now: () => number = Date.now): Promise<Shot[]> {
+      if (running) {
+        again = true;
+        return running;
+      }
+      running = (async () => {
+        do {
+          again = false;
+          await drainOnce(userId, roomId, now);
+        } while (again);
+        return store.list(userId, roomId);
+      })().finally(() => {
+        running = null;
+      });
+      return running;
+    },
+  };
+}
