@@ -20,7 +20,7 @@ export const CONFIG = {
    * join/index.html 的 `WEB_CAMERA_ENABLED`,按鈕連到 https://sharedroll-join.pages.dev/?code=…;
    * 主 repo 的 join/index.html 一起同步,再跑 mirrors:sync)。
    */
-  webJoinEnabled: false,
+  webJoinEnabled: true,
   privacyPolicyUrl: 'https://soymilk0211.github.io/sharedroll-legal/privacy-policy',
   eulaUrl: 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/',
   /**

@@ -140,7 +140,7 @@
   // 只放驗過的那六碼,不把網址上的東西原樣轉進 App。
   document.getElementById('open').setAttribute('href', 'sharedroll://join?code=' + code);
   // 「用網頁直接拍」的上線開關(W9 才打開)。同樣只帶驗過的六碼,ct 等其他參數不帶過去。
-  var WEB_CAMERA_ENABLED = false;
+  var WEB_CAMERA_ENABLED = true;
   if (WEB_CAMERA_ENABLED) {
     var web = document.getElementById('web');
     web.setAttribute('href', 'https://sharedroll-join.pages.dev/?code=' + code);
