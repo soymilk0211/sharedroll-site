@@ -38,5 +38,12 @@ export default defineConfig({
     // 不產 source map:線上那一份不需要。
     sourcemap: false,
     assetsDir: 'assets',
+    // 兩頁:相機(/)與加入頁(/join/)。Pages 有 dist/join/index.html 就直接回它,不會落到相機頁。
+    rollupOptions: {
+      input: {
+        main: new URL('./web/index.html', import.meta.url).pathname,
+        join: new URL('./web/join/index.html', import.meta.url).pathname,
+      },
+    },
   },
 });

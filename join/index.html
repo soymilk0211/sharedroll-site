@@ -9,17 +9,17 @@
 <!--
   舊分享網址(github.io/sharedroll-site/join/)的轉址頁。裝了 App 的 iPhone 由根網域的
   apple-app-site-association 直接開 App,不會走到這裡;其他人原樣帶著 ?code= / ?t= 與 # 轉到
-  https://sharedroll-join.pages.dev/。不載任何第三方腳本。主 repo 的 join/index.html 鏡像要一起更新。
+  https://sharedroll-join.pages.dev/join/(加入頁)。不載任何第三方腳本。主 repo 的 join/index.html 鏡像要一起更新。
 -->
 <script>
-  location.replace('https://sharedroll-join.pages.dev/' + location.search + location.hash);
+  location.replace('https://sharedroll-join.pages.dev/join/' + location.search + location.hash);
 </script>
 <style>body{font-family:-apple-system,system-ui,sans-serif;background:#0E0C0A;color:#EDE6DA;margin:0;padding:3rem 1.25rem;text-align:center}a{color:#EDE6DA}</style>
 </head>
 <body>
 <p>正在前往 SharedRoll…</p>
-<p><a id="go" href="https://sharedroll-join.pages.dev/">沒有自動跳轉請按這裡</a></p>
-<script>document.getElementById('go').href = 'https://sharedroll-join.pages.dev/' + location.search + location.hash;</script>
+<p><a id="go" href="https://sharedroll-join.pages.dev/join/">沒有自動跳轉請按這裡</a></p>
+<script>document.getElementById('go').href = 'https://sharedroll-join.pages.dev/join/' + location.search + location.hash;</script>
 <noscript><p>請按上面的連結繼續。</p></noscript>
 </body>
 </html>
