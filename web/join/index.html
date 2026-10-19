@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<!-- 加入頁(分享連結落地頁)。舊網址 github.io/sharedroll-site/join/ 原樣帶著 query 轉到這裡。
+     與相機頁同一份 _headers(CSP、frame-ancestors、noindex);不載任何第三方腳本。 -->
+<title>加入 SharedRoll</title>
+<link rel="stylesheet" href="../src/styles.css">
+</head>
+<body>
+<main>
+  <div class="wordmark">SharedRoll</div>
+
+  <section id="screen-room" hidden>
+    <h1>有人邀你一起拍這一卷</h1>
+    <p class="label">房間碼</p>
+    <div class="code" id="code"></div>
+    <p class="hint">如果這卷已經開始拍,就不能再加入了,請跟主辦人確認。</p>
+    <a class="button primary" id="open" href="#">打開 SharedRoll 進房</a>
+    <a class="button" id="web" href="#" hidden>不想裝 App?用網頁加入</a>
+    <a class="button" data-app-store>還沒裝?到 App Store 免費下載</a>
+    <a class="button" data-play-store>Android?到 Google Play 免費下載</a>
+    <p class="hint">裝好之後打開 SharedRoll,按「加入房間」,把上面這六碼輸進去。</p>
+  </section>
+
+  <section id="screen-transfer" hidden>
+    <h1>把網頁拍的照片搬進 App</h1>
+    <p class="hint">先裝好 SharedRoll 並登入,再按「打開 SharedRoll」。</p>
+    <a class="button primary" id="open-transfer" href="#">打開 SharedRoll</a>
+    <a class="button" data-app-store>到 App Store 免費下載</a>
+    <a class="button" data-play-store>Android?到 Google Play 免費下載</a>
+  </section>
+
+  <section id="screen-bad" hidden>
+    <h1>這條連結不完整</h1>
+    <p class="hint">請對方再分享一次,或直接跟他要那六碼,在 SharedRoll 裡按「加入房間」輸進去。</p>
+    <a class="button" data-app-store>到 App Store 免費下載</a>
+    <a class="button" data-play-store>Android?到 Google Play 免費下載</a>
+  </section>
+</main>
+<footer>SharedRoll · 一群人,共用一卷底片</footer>
+<script type="module" src="../src/join-page.ts"></script>
+</body>
+</html>

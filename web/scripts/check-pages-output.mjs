@@ -13,7 +13,7 @@ const dist = join(root, 'dist');
 const problems = [];
 const fail = (message) => problems.push(message);
 
-for (const name of ['index.html', '_headers', 'recipes.json']) {
+for (const name of ['index.html', 'join/index.html', '_headers', 'recipes.json']) {
   if (!existsSync(join(dist, name))) fail(`dist/${name} 不見了`);
 }
 
@@ -39,12 +39,13 @@ if (existsSync(join(dist, '_headers'))) {
   if (!/^\/\*\s*$/m.test(headers)) fail('_headers 沒有套用到 /* 的那一段');
 }
 
-if (existsSync(join(dist, 'index.html'))) {
-  const html = readFileSync(join(dist, 'index.html'), 'utf8');
+for (const page of ['index.html', 'join/index.html']) {
+  if (!existsSync(join(dist, page))) continue;
+  const html = readFileSync(join(dist, page), 'utf8');
   const refs = [...html.matchAll(/<(?:script|link)\b[^>]*\b(?:src|href)="([^"]+)"/g)].map((m) => m[1]);
-  if (refs.length === 0) fail('dist/index.html 沒有載入任何資產,建置可能壞了');
+  if (refs.length === 0) fail(`dist/${page} 沒有載入任何資產,建置可能壞了`);
   for (const ref of refs) {
-    if (!ref.startsWith('/assets/')) fail(`dist/index.html 載入了 ${ref}(只能是同 origin 的 /assets/…)`);
+    if (!ref.startsWith('/assets/')) fail(`dist/${page} 載入了 ${ref}(只能是同 origin 的 /assets/…)`);
   }
   if (/http-equiv="Content-Security-Policy"/i.test(html)) {
     fail('CSP 已搬到 _headers,index.html 不要再放 <meta> CSP(兩份會互相打架)');
