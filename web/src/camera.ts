@@ -76,8 +76,12 @@ export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> 
     audio: false,
     video: {
       facingMode: { ideal: 'environment' },
-      width: { ideal: 4096 },
-      height: { ideal: 4096 },
+      // 4096 會讓 iPhone 開出 4032×3024 的串流:取景每格都上傳一張 12MP 貼圖(發燙),
+      // 按快門時 Safari 的 WebGL/畫布記憶體不夠(context lost → 「這張沒拍成」、取景凍住)。
+      width: { ideal: 2560 },
+      height: { ideal: 2560 },
+      // 取景只要 15 格;不給的話部分手機會開到 60fps 的 4K 串流,很燙。
+      frameRate: { ideal: 30 },
     },
   });
   video.srcObject = stream;
@@ -87,8 +91,12 @@ export async function openCamera(video: HTMLVideoElement): Promise<MediaStream> 
   return stream;
 }
 
-/** 燒入的長邊上限。App 的實拍是 4032;再大的不收。 */
-const MAX_EDGE = 4032;
+/**
+ * 燒入的長邊上限。App 是 4032,但 iOS Safari 的畫布/WebGL 記憶體撐不住 4032 那條管線,網頁取 2560;
+ * 失敗再用 `FALLBACK_EDGE` 重燒一次(盲盒相機沒有第二次機會,寧可小一點也要拍成)。
+ */
+const MAX_EDGE = 2560;
+const FALLBACK_EDGE = 1600;
 /** 縮圖寬度與兩層的 JPEG 品質,與 App 的 `burn-in.ts` 相同。 */
 export const THUMBNAIL_WIDTH = 640;
 export const FULL_QUALITY = 0.95;
@@ -134,10 +142,25 @@ export async function burnFrame(
   clientKey: string,
 ): Promise<BurnedPhoto> {
   if (!cameraIsLive(video)) throw new Error('相機還沒準備好');
+  try {
+    return await burnAt(renderer, video, filter, clientKey, MAX_EDGE);
+  } catch (error) {
+    if (renderer.isLost()) throw error;
+    return burnAt(renderer, video, filter, clientKey, FALLBACK_EDGE);
+  }
+}
+
+async function burnAt(
+  renderer: FilmRenderer,
+  video: HTMLVideoElement,
+  filter: FilmFilterKey,
+  clientKey: string,
+  maxEdge: number,
+): Promise<BurnedPhoto> {
   const width = video.videoWidth;
   const height = video.videoHeight;
   const rect = cropToPhotoAspect(width, height);
-  const size = fitWithin(rect, Math.min(MAX_EDGE, renderer.maxTextureSize));
+  const size = fitWithin(rect, Math.min(maxEdge, renderer.maxTextureSize));
   const textures: FilmTexture[] = [];
   try {
     const frame = renderer.upload(video, width, height);

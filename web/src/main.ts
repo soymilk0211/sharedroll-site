@@ -344,7 +344,15 @@ async function cameraScreen(
     try {
       const clientKey = crypto.randomUUID();
       const takenAt = new Date().toISOString();
-      const burned = await burnFrame(renderer, video, filter(), clientKey);
+      // 燒入時先停取景:兩條管線同時佔 GPU 記憶體,iPhone 會把 context 收回。
+      stopPreview?.();
+      stopPreview = null;
+      let burned;
+      try {
+        burned = await burnFrame(renderer, video, filter(), clientKey);
+      } finally {
+        if (cameraReady && renderer && !revealedHandled) beginPreview();
+      }
       await store.put({
         clientKey,
         roomId,
@@ -371,7 +379,13 @@ async function cameraScreen(
 
   window.addEventListener('online', () => void drain());
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+    if (document.visibilityState !== 'visible') {
+      // 切到背景就把相機真的關掉(燈熄、感光元件停),回來再由下面那段重開。
+      stopPreview?.();
+      stopPreview = null;
+      releaseCamera();
+      return;
+    }
     if (revealedHandled) {
       void drain();
       return;
@@ -384,7 +398,9 @@ async function cameraScreen(
     });
     void drain();
   });
-  setInterval(() => void drain(), 15_000);
+  setInterval(() => {
+    if (document.visibilityState === 'visible') void drain();
+  }, 15_000);
   void drain();
 }
 
